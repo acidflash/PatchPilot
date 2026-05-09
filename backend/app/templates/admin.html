@@ -2,999 +2,1554 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>PatchPilot Enterprise</title>
+  <title>PatchPilot — Fleet Control</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
-
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
     :root {
-      --bg: #070b12;
-      --panel: #0d1420;
-      --panel-2: #111a2a;
-      --panel-3: #162235;
-      --border: #243247;
-      --border-soft: #1c293b;
-      --text: #e6edf7;
-      --muted: #91a0b8;
-      --muted-2: #67758c;
-      --blue: #4f8cff;
-      --blue-soft: rgba(79, 140, 255, .14);
-      --green: #46d27d;
-      --green-soft: rgba(70, 210, 125, .14);
-      --yellow: #f2c94c;
-      --yellow-soft: rgba(242, 201, 76, .14);
-      --red: #ff5c6c;
-      --red-soft: rgba(255, 92, 108, .14);
-      --purple: #a78bfa;
-      --purple-soft: rgba(167, 139, 250, .14);
-      --shadow: 0 18px 45px rgba(0, 0, 0, .38);
-      --radius: 16px;
+      --bg:          #05080f;
+      --surface:     #0b1120;
+      --surface-2:   #0f1828;
+      --surface-3:   #132035;
+      --border:      #1e2d45;
+      --border-soft: #172338;
+      --text:        #e2eaf6;
+      --text-2:      #94a3b8;
+      --text-3:      #566577;
+
+      --blue:        #4f8cff;
+      --blue-dim:    rgba(79,140,255,.12);
+      --blue-glow:   rgba(79,140,255,.22);
+      --green:       #34d399;
+      --green-dim:   rgba(52,211,153,.12);
+      --green-glow:  rgba(52,211,153,.22);
+      --yellow:      #fbbf24;
+      --yellow-dim:  rgba(251,191,36,.12);
+      --red:         #f87171;
+      --red-dim:     rgba(248,113,113,.12);
+      --red-glow:    rgba(248,113,113,.22);
+      --purple:      #a78bfa;
+      --purple-dim:  rgba(167,139,250,.12);
+      --cyan:        #22d3ee;
+      --cyan-dim:    rgba(34,211,238,.12);
+
+      --radius-sm: 8px;
+      --radius:    12px;
+      --radius-lg: 16px;
+      --shadow:    0 8px 32px rgba(0,0,0,.45);
+      --shadow-sm: 0 2px 8px rgba(0,0,0,.3);
     }
 
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
 
     body {
       margin: 0;
-      background:
-        radial-gradient(circle at top left, rgba(79, 140, 255, .16), transparent 32rem),
-        radial-gradient(circle at top right, rgba(167, 139, 250, .12), transparent 30rem),
-        var(--bg);
+      font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
       color: var(--text);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 40% at 20% 0%, rgba(79,140,255,.1) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 30% at 80% 0%, rgba(167,139,250,.08) 0%, transparent 55%),
+        var(--bg);
       min-height: 100vh;
     }
 
     a { color: inherit; text-decoration: none; }
+    button, input, select { font-family: inherit; font-size: 13px; }
 
+    /* ── Layout ─────────────────────────────────────────────── */
     .layout {
       display: grid;
-      grid-template-columns: 280px 1fr;
+      grid-template-columns: 240px 1fr;
       min-height: 100vh;
     }
 
+    /* ── Sidebar ─────────────────────────────────────────────── */
     .sidebar {
       position: sticky;
       top: 0;
       height: 100vh;
-      background: rgba(10, 16, 27, .86);
-      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      background: rgba(8,13,24,.92);
       border-right: 1px solid var(--border-soft);
-      padding: 24px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 22px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px;
-    }
-
-    .brand-mark {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, var(--blue), var(--purple));
-      box-shadow: 0 12px 30px rgba(79, 140, 255, .28);
-      display: grid;
-      place-items: center;
-      font-weight: 900;
-      color: white;
-      letter-spacing: -1px;
-    }
-
-    .brand-title {
-      font-weight: 800;
-      font-size: 18px;
-      letter-spacing: -.02em;
-    }
-
-    .brand-sub {
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 2px;
-    }
-
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .nav a {
-      color: var(--muted);
-      padding: 11px 12px;
-      border-radius: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border: 1px solid transparent;
-    }
-
-    .nav a:hover {
-      color: var(--text);
-      background: var(--panel-2);
-      border-color: var(--border-soft);
-    }
-
-    .sidebar-footer {
-      margin-top: auto;
-      border-top: 1px solid var(--border-soft);
-      padding-top: 16px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .main {
-      padding: 28px;
-      overflow: hidden;
-    }
-
-    .topbar {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 20px;
-      margin-bottom: 24px;
-    }
-
-    .headline h1 {
-      margin: 0;
-      font-size: 30px;
-      letter-spacing: -.04em;
-      line-height: 1.1;
-    }
-
-    .headline p {
-      color: var(--muted);
-      margin: 8px 0 0;
-    }
-
-    .top-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      border: 1px solid var(--border-soft);
-      color: var(--muted);
-      background: rgba(255,255,255,.03);
-      white-space: nowrap;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      white-space: nowrap;
-    }
-
-    .badge.ok { color: var(--green); background: var(--green-soft); border: 1px solid rgba(70,210,125,.24); }
-    .badge.warn { color: var(--yellow); background: var(--yellow-soft); border: 1px solid rgba(242,201,76,.24); }
-    .badge.bad { color: var(--red); background: var(--red-soft); border: 1px solid rgba(255,92,108,.24); }
-    .badge.info { color: var(--blue); background: var(--blue-soft); border: 1px solid rgba(79,140,255,.24); }
-    .badge.disabled { color: var(--muted); background: rgba(145,160,184,.12); border: 1px solid rgba(145,160,184,.2); }
-    .badge.purple { color: var(--purple); background: var(--purple-soft); border: 1px solid rgba(167,139,250,.24); }
-
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-
-    .card {
-      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.015)), var(--panel);
-      border: 1px solid var(--border-soft);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 18px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .card::after {
-      content: "";
-      position: absolute;
-      inset: auto -40px -50px auto;
-      width: 120px;
-      height: 120px;
-      background: radial-gradient(circle, rgba(79, 140, 255, .12), transparent 70%);
-      pointer-events: none;
-    }
-
-    .metric-label {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: 10px;
-    }
-
-    .metric {
-      font-size: 32px;
-      line-height: 1;
-      font-weight: 850;
-      letter-spacing: -.05em;
-    }
-
-    .metric-sub {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .section {
-      background: rgba(13, 20, 32, .88);
-      border: 1px solid var(--border-soft);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      margin-bottom: 22px;
-      overflow: hidden;
-    }
-
-    .section-header {
-      padding: 18px 20px;
+    .sidebar-brand {
+      padding: 20px 16px 18px;
       border-bottom: 1px solid var(--border-soft);
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      background: linear-gradient(180deg, rgba(255,255,255,.035), transparent);
+      gap: 11px;
     }
 
-    .section-title {
-      margin: 0;
-      font-size: 17px;
+    .brand-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 8px 20px rgba(79,140,255,.3);
+      display: grid; place-items: center;
+      flex-shrink: 0;
+    }
+
+    .brand-icon svg { width: 18px; height: 18px; color: #fff; }
+
+    .brand-text strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      color: var(--text);
+    }
+
+    .brand-text span {
+      font-size: 11px;
+      color: var(--text-3);
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+    }
+
+    .nav-section-label {
+      padding: 10px 8px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-3);
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      color: var(--text-2);
+      border: 1px solid transparent;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      background: rgba(255,255,255,.05);
+      border-color: var(--border-soft);
+    }
+
+    .nav-link svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .75; }
+    .nav-link:hover svg { opacity: 1; }
+
+    .nav-link-label { flex: 1; font-size: 13px; font-weight: 500; }
+
+    .nav-chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: var(--surface-3);
+      color: var(--text-2);
+      border: 1px solid var(--border-soft);
+      min-width: 22px;
+      text-align: center;
+    }
+
+    .nav-chip.alert { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,.25); }
+    .nav-chip.ok    { background: var(--green-dim); color: var(--green); border-color: rgba(52,211,153,.25); }
+    .nav-chip.info  { background: var(--blue-dim); color: var(--blue); border-color: rgba(79,140,255,.25); }
+    .nav-chip.warn  { background: var(--yellow-dim); color: var(--yellow); border-color: rgba(251,191,36,.25); }
+
+    .sidebar-footer {
+      padding: 12px 16px 18px;
+      border-top: 1px solid var(--border-soft);
+    }
+
+    .endpoint-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-3);
+      margin-bottom: 4px;
+    }
+
+    .endpoint-value {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 11px;
+      color: var(--text-2);
+      background: var(--surface-3);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      padding: 4px 8px;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+
+    /* ── Main ─────────────────────────────────────────────────── */
+    .main { padding: 0; overflow: hidden; min-width: 0; }
+
+    /* ── Topbar ────────────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border-soft);
+      background: rgba(8,13,24,.6);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 700;
       letter-spacing: -.02em;
     }
 
-    .section-desc {
-      margin: 4px 0 0;
-      color: var(--muted);
+    .topbar-sub { font-size: 12px; color: var(--text-3); }
+
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+
+    .stat-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border-soft);
+      background: rgba(255,255,255,.03);
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+
+    .stat-chip .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .55; transform: scale(.8); }
+    }
+
+    /* ── Content ────────────────────────────────────────────────── */
+    .content { padding: 24px 28px; }
+
+    /* ── KPI Cards ────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .kpi-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-soft);
+      background: linear-gradient(160deg, var(--surface-2), var(--surface));
+      padding: 18px 18px 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      opacity: .5;
+    }
+
+    .kpi-card.blue::before  { background: radial-gradient(circle at 100% 0%, var(--blue-glow), transparent 60%); }
+    .kpi-card.green::before { background: radial-gradient(circle at 100% 0%, var(--green-glow), transparent 60%); }
+    .kpi-card.yellow::before { background: radial-gradient(circle at 100% 0%, rgba(251,191,36,.15), transparent 60%); }
+    .kpi-card.red::before   { background: radial-gradient(circle at 100% 0%, var(--red-glow), transparent 60%); }
+
+    .kpi-icon {
+      width: 32px; height: 32px;
+      border-radius: var(--radius-sm);
+      display: grid; place-items: center;
+      margin-bottom: 12px;
+    }
+
+    .kpi-icon svg { width: 16px; height: 16px; }
+    .kpi-icon.blue   { background: var(--blue-dim);   color: var(--blue);   box-shadow: 0 0 12px var(--blue-glow); }
+    .kpi-icon.green  { background: var(--green-dim);  color: var(--green);  box-shadow: 0 0 12px var(--green-glow); }
+    .kpi-icon.yellow { background: var(--yellow-dim); color: var(--yellow); }
+    .kpi-icon.red    { background: var(--red-dim);    color: var(--red);    box-shadow: 0 0 12px var(--red-glow); }
+
+    .kpi-value {
+      font-size: 30px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -.06em;
+      margin-bottom: 4px;
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-3);
+      margin-bottom: 2px;
+    }
+
+    .kpi-sub { font-size: 12px; color: var(--text-2); }
+
+    /* ── Section ──────────────────────────────────────────────── */
+    .section {
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-lg);
+      background: rgba(11,17,32,.9);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-soft);
+      background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, transparent 100%);
+    }
+
+    .section-head-left { display: flex; align-items: center; gap: 10px; }
+
+    .section-icon {
+      width: 28px; height: 28px;
+      border-radius: var(--radius-sm);
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border-soft);
+      display: grid; place-items: center;
+      color: var(--text-2);
+    }
+
+    .section-icon svg { width: 14px; height: 14px; }
+
+    .section-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -.01em;
+    }
+
+    .section-sub { font-size: 12px; color: var(--text-3); }
+
+    .section-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* ── Filter bar ───────────────────────────────────────────── */
+    .filter-bar {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      gap: 8px;
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      max-width: 320px;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px; height: 14px;
+      color: var(--text-3);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--surface-3);
+      border: 1px solid var(--border-soft);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 7px 10px 7px 32px;
+      outline: none;
       font-size: 13px;
     }
 
+    .search-input:focus {
+      border-color: rgba(79,140,255,.6);
+      box-shadow: 0 0 0 3px rgba(79,140,255,.12);
+    }
+
+    .search-input::placeholder { color: var(--text-3); }
+
+    /* ── Table ────────────────────────────────────────────────── */
     .table-wrap { overflow-x: auto; }
 
     table {
       border-collapse: collapse;
       width: 100%;
-      min-width: 900px;
+      min-width: 860px;
     }
 
-    th {
-      color: var(--muted);
-      text-align: left;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      font-weight: 800;
+    thead th {
       background: rgba(255,255,255,.02);
       border-bottom: 1px solid var(--border-soft);
-      padding: 12px 14px;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-3);
       white-space: nowrap;
     }
 
-    td {
-      border-bottom: 1px solid rgba(36, 50, 71, .66);
-      padding: 13px 14px;
+    tbody td {
+      padding: 11px 14px;
+      border-bottom: 1px solid rgba(30,45,69,.5);
       vertical-align: top;
       color: var(--text);
       font-size: 13px;
     }
 
-    tr:hover td { background: rgba(255,255,255,.018); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,.015); }
+    tbody tr.security-row td { border-left: 2px solid rgba(248,113,113,.4); }
 
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      color: #cbd5e1;
-      font-size: 12px;
-    }
-
-    .muted { color: var(--muted); }
-    .small { font-size: 12px; }
-    .tiny { font-size: 11px; }
-    .danger-text { color: var(--red); }
-    .ok-text { color: var(--green); }
-    .warn-text { color: var(--yellow); }
-
-    .row-title {
-      font-weight: 800;
-      margin-bottom: 3px;
-    }
-
-    .row-sub {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .actions {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 280px;
-    }
-
-    form.inline {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+    /* ── Badges ───────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
       align-items: center;
-      margin: 0;
-    }
-
-    input, select {
-      background: #0b111c;
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 10px;
-      padding: 8px 10px;
-      outline: none;
-      max-width: 100%;
-    }
-
-    input:focus, select:focus {
-      border-color: rgba(79,140,255,.8);
-      box-shadow: 0 0 0 3px rgba(79,140,255,.16);
-    }
-
-    button {
-      background: var(--panel-3);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 8px 11px;
-      cursor: pointer;
-      font-weight: 750;
-      transition: .15s ease;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
       white-space: nowrap;
+      vertical-align: middle;
     }
 
-    button:hover {
+    .badge svg { width: 10px; height: 10px; }
+
+    .badge.ok       { color: var(--green);  background: var(--green-dim);  border: 1px solid rgba(52,211,153,.25); }
+    .badge.warn     { color: var(--yellow); background: var(--yellow-dim); border: 1px solid rgba(251,191,36,.25); }
+    .badge.bad      { color: var(--red);    background: var(--red-dim);    border: 1px solid rgba(248,113,113,.25); }
+    .badge.info     { color: var(--blue);   background: var(--blue-dim);   border: 1px solid rgba(79,140,255,.25); }
+    .badge.disabled { color: var(--text-3); background: rgba(255,255,255,.04); border: 1px solid var(--border-soft); }
+    .badge.purple   { color: var(--purple); background: var(--purple-dim); border: 1px solid rgba(167,139,250,.25); }
+    .badge.cyan     { color: var(--cyan);   background: var(--cyan-dim);   border: 1px solid rgba(34,211,238,.25); }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .status-dot.online  { background: var(--green);  box-shadow: 0 0 6px var(--green);  animation: pulse 2s ease infinite; }
+    .status-dot.stale   { background: var(--yellow); }
+    .status-dot.offline { background: var(--red); }
+    .status-dot.disabled { background: var(--text-3); }
+
+    /* ── Text helpers ─────────────────────────────────────────── */
+    .mono {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+
+    .text-sm   { font-size: 12px; }
+    .text-xs   { font-size: 11px; }
+    .text-muted  { color: var(--text-2); }
+    .text-faint  { color: var(--text-3); }
+    .text-ok     { color: var(--green); }
+    .text-warn   { color: var(--yellow); }
+    .text-danger { color: var(--red); }
+    .fw-bold   { font-weight: 700; }
+
+    .cell-title { font-weight: 600; margin-bottom: 2px; }
+    .cell-sub   { font-size: 11.5px; color: var(--text-2); line-height: 1.4; }
+
+    /* ── Buttons ──────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-3);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .12s, border-color .12s, transform .1s, box-shadow .12s;
+      text-decoration: none;
+    }
+
+    .btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+    .btn:hover {
+      background: var(--surface-2);
+      border-color: rgba(79,140,255,.4);
       transform: translateY(-1px);
-      border-color: rgba(79,140,255,.55);
-      background: #1b2a42;
     }
 
-    button.primary {
-      background: linear-gradient(135deg, #3268e8, #6d5dfc);
-      border-color: rgba(255,255,255,.12);
-      box-shadow: 0 10px 22px rgba(79,140,255,.22);
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      border-color: rgba(255,255,255,.1);
+      box-shadow: 0 4px 14px rgba(79,140,255,.25);
     }
 
-    button.danger {
-      background: rgba(127, 29, 29, .88);
-      border-color: rgba(255, 92, 108, .32);
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(79,140,255,.35);
+      border-color: rgba(255,255,255,.18);
     }
 
-    button.ghost { background: transparent; }
-
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 22px;
+    .btn-danger {
+      background: rgba(127,29,29,.7);
+      border-color: rgba(248,113,113,.3);
+      color: var(--red);
     }
 
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      padding: 18px 20px;
+    .btn-danger:hover {
+      background: rgba(127,29,29,.9);
+      border-color: rgba(248,113,113,.5);
     }
 
-    .form-grid.full { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .form-grid .span { grid-column: 1 / -1; }
+    .btn-ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--text-2);
+    }
 
-    .package-grid {
+    .btn-ghost:hover { background: rgba(255,255,255,.04); border-color: var(--border-soft); }
+
+    .btn-sm { padding: 4px 9px; font-size: 11.5px; }
+
+    /* ── Action group ─────────────────────────────────────────── */
+    .action-group {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 5px;
+      align-items: center;
     }
+
+    /* ── Forms ────────────────────────────────────────────────── */
+    .form-panel { padding: 16px 18px; border-bottom: 1px solid var(--border-soft); }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .form-field { display: flex; flex-direction: column; gap: 4px; }
+    .form-label { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .06em; }
+
+    input[type=text],
+    input[type=number],
+    input:not([type=checkbox]):not([type=radio]):not([type=submit]),
+    select,
+    textarea {
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 7px 10px;
+      outline: none;
+      width: 100%;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(79,140,255,.7);
+      box-shadow: 0 0 0 3px rgba(79,140,255,.14);
+    }
+
+    input::placeholder { color: var(--text-3); }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-2);
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--blue); }
 
     pre {
       margin: 0;
       white-space: pre-wrap;
-      max-height: 150px;
+      max-height: 120px;
       overflow: auto;
-      font-size: 12px;
-      color: #cbd5e1;
-      background: rgba(0,0,0,.18);
+      font-size: 11.5px;
+      color: #94a3b8;
+      background: rgba(0,0,0,.25);
       border: 1px solid var(--border-soft);
-      border-radius: 10px;
-      padding: 10px;
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
     }
 
-    .footer-note {
-      color: var(--muted-2);
-      font-size: 12px;
-      padding: 12px 2px 30px;
+    /* ── Two-col ──────────────────────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 18px;
     }
 
+    /* ── Empty state ────────────────────────────────────────── */
+    .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-3);
+    }
+
+    .empty-state svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: .4; }
+    .empty-state p { margin: 6px 0 0; font-size: 13px; }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    .page-footer {
+      color: var(--text-3);
+      font-size: 11.5px;
+      padding: 12px 4px 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-footer::before {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-soft);
+    }
+
+    /* ── Mobile brand ─────────────────────────────────────────── */
     .mobile-brand { display: none; }
 
-    @media (max-width: 1100px) {
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 1080px) {
       .layout { grid-template-columns: 1fr; }
       .sidebar { display: none; }
-      .main { padding: 18px; }
-      .mobile-brand { display: block; margin-bottom: 16px; }
-      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .mobile-brand { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border-soft); }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
       .two-col { grid-template-columns: 1fr; }
-      .form-grid.full { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .content { padding: 16px 18px; }
+      .topbar { padding: 12px 18px; }
     }
 
-    @media (max-width: 620px) {
-      .cards { grid-template-columns: 1fr; }
-      .topbar { flex-direction: column; }
-      .form-grid, .form-grid.full { grid-template-columns: 1fr; }
+    @media (max-width: 600px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .topbar-right { display: none; }
+    }
+
+    /* ── Toast area (CSS-only skeleton) ──────────────────────── */
+    #toast-area {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
     }
   </style>
 </head>
 
 <body>
-  {% set ns = namespace(total=0, online=0, stale=0, offline=0, disabled=0, security=0, reboot=0, pending=0, failed=0, approval=0) %}
+
+  {# ── Compute fleet stats ───────────────────────────────────── #}
+  {% set ns = namespace(total=0, online=0, stale=0, offline=0, disabled=0,
+                        security=0, reboot=0, pending=0, failed=0, approval=0, pending_approval=0) %}
   {% for m in machines %}
     {% set ns.total = ns.total + 1 %}
     {% set st = machine_state(m) %}
-    {% if st == 'online' %}{% set ns.online = ns.online + 1 %}{% endif %}
-    {% if st == 'stale' %}{% set ns.stale = ns.stale + 1 %}{% endif %}
-    {% if st == 'offline' %}{% set ns.offline = ns.offline + 1 %}{% endif %}
+    {% if st == 'online'   %}{% set ns.online   = ns.online   + 1 %}{% endif %}
+    {% if st == 'stale'    %}{% set ns.stale    = ns.stale    + 1 %}{% endif %}
+    {% if st == 'offline'  %}{% set ns.offline  = ns.offline  + 1 %}{% endif %}
     {% if st == 'disabled' %}{% set ns.disabled = ns.disabled + 1 %}{% endif %}
     {% if m.security_updates_available and m.security_updates_available > 0 %}{% set ns.security = ns.security + 1 %}{% endif %}
     {% if m.reboot_required %}{% set ns.reboot = ns.reboot + 1 %}{% endif %}
+    {% if not m.approved %}{% set ns.pending_approval = ns.pending_approval + 1 %}{% endif %}
   {% endfor %}
   {% for j in jobs %}
-    {% if j.status == 'pending' or j.status == 'running' %}{% set ns.pending = ns.pending + 1 %}{% endif %}
-    {% if j.status == 'failed' %}{% set ns.failed = ns.failed + 1 %}{% endif %}
+    {% if j.status in ('pending', 'running') %}{% set ns.pending = ns.pending + 1 %}{% endif %}
+    {% if j.status == 'failed'            %}{% set ns.failed   = ns.failed   + 1 %}{% endif %}
     {% if j.status == 'approval_required' %}{% set ns.approval = ns.approval + 1 %}{% endif %}
   {% endfor %}
 
+  <div id="toast-area"></div>
+
   <div class="layout">
+
+    {# ── Sidebar ───────────────────────────────────────────────── #}
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">PP</div>
-        <div>
-          <div class="brand-title">PatchPilot</div>
-          <div class="brand-sub">Enterprise Control Plane</div>
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <strong>PatchPilot</strong>
+          <span>Enterprise</span>
         </div>
       </div>
 
-      <nav class="nav">
-        <a href="#overview">Overview <span class="badge info">{{ ns.total }}</span></a>
-        <a href="#fleet">Fleet <span class="badge ok">{{ ns.online }}</span></a>
-        <a href="#jobs">Jobs <span class="badge warn">{{ ns.pending }}</span></a>
-        <a href="#groups">Groups <span class="badge purple">{{ groups|length }}</span></a>
-        <a href="#schedules">Schedules <span class="badge info">{{ schedules|length }}</span></a>
-        <a href="#packages">Packages <span class="badge bad">{{ ns.security }}</span></a>
-        <a href="#audit">Audit <span class="badge disabled">log</span></a>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Dashboard</div>
+
+        <a href="#overview" class="nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span class="nav-link-label">Overview</span>
+          <span class="nav-chip info">{{ ns.total }}</span>
+        </a>
+
+        <div class="nav-section-label">Fleet</div>
+
+        <a href="#fleet" class="nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+          </svg>
+          <span class="nav-link-label">Machines</span>
+          {% if ns.pending_approval > 0 %}
+            <span class="nav-chip alert">{{ ns.pending_approval }}</span>
+          {% else %}
+            <span class="nav-chip ok">{{ ns.online }}</span>
+          {% endif %}
+        </a>
+
+        <a href="#jobs" class="nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span class="nav-link-label">Jobs</span>
+          {% if ns.failed > 0 %}
+            <span class="nav-chip alert">{{ ns.failed }} err</span>
+          {% elif ns.pending > 0 %}
+            <span class="nav-chip warn">{{ ns.pending }}</span>
+          {% else %}
+            <span class="nav-chip">{{ jobs|length }}</span>
+          {% endif %}
+        </a>
+
+        <a href="#packages" class="nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+          <span class="nav-link-label">Packages</span>
+          {% if ns.security > 0 %}
+            <span class="nav-chip alert">{{ ns.security }}</span>
+          {% else %}
+            <span class="nav-chip">—</span>
+          {% endif %}
+        </a>
+
+        <div class="nav-section-label">Configuration</div>
+
+        <a href="#groups" class="nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span class="nav-link-label">Groups</span>
+          <span class="nav-chip">{{ groups|length }}</span>
+        </a>
+
+        <a href="#schedules" class="nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span class="nav-link-label">Schedules</span>
+          <span class="nav-chip">{{ schedules|length }}</span>
+        </a>
+
+        <a href="#audit" class="nav-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <span class="nav-link-label">Audit log</span>
+          <span class="nav-chip">{{ audits|length }}</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
-        <div><strong>Agent endpoint</strong></div>
-        <div class="mono">patch.example.com</div>
-        <br>
-        <div><strong>Admin endpoint</strong></div>
-        <div class="mono">internal only</div>
+        <div class="endpoint-label">Agent endpoint</div>
+        <div class="endpoint-value">{{ request.headers.get('host', 'agent.local') }}</div>
+        <div class="endpoint-label">Version</div>
+        <div class="endpoint-value">v{{ version }}</div>
       </div>
     </aside>
 
+    {# ── Main ──────────────────────────────────────────────────── #}
     <main class="main">
+
+      {# Mobile brand #}
       <div class="mobile-brand">
-        <div class="brand">
-          <div class="brand-mark">PP</div>
-          <div>
-            <div class="brand-title">PatchPilot</div>
-            <div class="brand-sub">Enterprise Control Plane</div>
-          </div>
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <strong>PatchPilot</strong>
+          <span>Enterprise</span>
         </div>
       </div>
 
-      <div class="topbar" id="overview">
-        <div class="headline">
-          <h1>Fleet patch management</h1>
-          <p>Ubuntu patching, compliance status, reboot tracking, scheduling and agent lifecycle.</p>
+      {# Topbar #}
+      <div class="topbar">
+        <div class="topbar-left">
+          <div>
+            <div class="topbar-title" id="overview">Fleet Control Plane</div>
+            <div class="topbar-sub">Patch compliance · Security posture · Agent lifecycle</div>
+          </div>
         </div>
-        <div class="top-actions">
-          <span class="pill">Version {{ version }}</span>
-          <span class="pill">Agents {{ ns.total }}</span>
-          <span class="pill">Online {{ ns.online }}</span>
-          <span class="pill">Security risk {{ ns.security }}</span>
-          <span class="pill">Pending approval {{ machines|selectattr("approved", "equalto", false)|list|length }}</span>
+        <div class="topbar-right">
+          <span class="stat-chip"><span class="dot"></span> {{ ns.online }} online</span>
+          {% if ns.security > 0 %}
+            <span class="stat-chip" style="color:var(--red); border-color:rgba(248,113,113,.3);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:12px;height:12px;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              {{ ns.security }} CVE risk
+            </span>
+          {% endif %}
+          {% if ns.reboot > 0 %}
+            <span class="stat-chip" style="color:var(--yellow); border-color:rgba(251,191,36,.3);">{{ ns.reboot }} reboot</span>
+          {% endif %}
+          <span class="stat-chip">v{{ version }}</span>
         </div>
       </div>
 
-      <section class="cards">
-        <div class="card">
-          <div class="metric-label">Managed agents</div>
-          <div class="metric">{{ ns.total }}</div>
-          <div class="metric-sub">{{ ns.online }} online, {{ ns.stale }} stale, {{ ns.offline }} offline</div>
-        </div>
-        <div class="card">
-          <div class="metric-label">Security exposure</div>
-          <div class="metric">{{ ns.security }}</div>
-          <div class="metric-sub">agents with security updates</div>
-        </div>
-        <div class="card">
-          <div class="metric-label">Reboot required</div>
-          <div class="metric">{{ ns.reboot }}</div>
-          <div class="metric-sub">agents waiting for restart</div>
-        </div>
-        <div class="card">
-          <div class="metric-label">Job queue</div>
-          <div class="metric">{{ ns.pending }}</div>
-          <div class="metric-sub">{{ ns.approval }} approval, {{ ns.failed }} failed</div>
-        </div>
-      </section>
+      <div class="content">
 
-      <section class="section" id="fleet">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Fleet inventory</h2>
-            <p class="section-desc">Agent status, patch exposure and operational actions.</p>
+        {# ── KPI cards ──────────────────────────────────────────── #}
+        <div class="kpi-grid">
+          <div class="kpi-card blue">
+            <div class="kpi-icon blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+              </svg>
+            </div>
+            <div class="kpi-label">Managed agents</div>
+            <div class="kpi-value">{{ ns.total }}</div>
+            <div class="kpi-sub">{{ ns.online }} online · {{ ns.stale }} stale · {{ ns.offline }} offline</div>
           </div>
-          <span class="badge info">{{ machines|length }} agents</span>
-        </div>
 
-        <div class="table-wrap">
-          <table>
-            <tr>
-              <th>State</th>
-              <th>Asset</th>
-              <th>Platform</th>
-              <th>Exposure</th>
-              <th>Groups</th>
-              <th>Last contact</th>
-              <th>Actions</th>
-            </tr>
-            {% for m in machines %}
-              {% set st = machine_state(m) %}
-              <tr>
-                <td>
-                  {% if st == 'online' %}<span class="badge ok">online</span>{% endif %}
-                  {% if st == 'stale' %}<span class="badge warn">stale</span>{% endif %}
-                  {% if st == 'offline' %}<span class="badge bad">offline</span>{% endif %}
-                  {% if st == 'disabled' %}<span class="badge disabled">disabled</span>{% endif %}
-                  {% if not m.approved %}<br><br><span class="badge purple">pending approval</span>{% endif %}
-                  {% if m.reboot_required %}<br><br><span class="badge warn">reboot</span>{% endif %}
-                </td>
-                <td>
-                  <div class="row-title">{{ m.hostname }}</div>
-                  <div class="row-sub mono">{{ m.machine_id }}</div>
-                  {% if not m.active %}<div class="row-sub danger-text">{{ m.disabled_reason }}</div>{% endif %}
-                  {% if m.last_error %}<div class="row-sub danger-text">Last error: {{ m.last_error[:160] }}</div>{% endif %}
-                </td>
-                <td>
-                  <div>{{ m.os_version or "-" }}</div>
-                  <div class="row-sub">Kernel: {{ m.kernel_version or "-" }}</div>
-                  <div class="row-sub">Agent: {{ m.agent_version or "-" }}</div>
-                </td>
-                <td>
-                  <div>Total updates: <strong class="{{ 'warn-text' if m.updates_available else 'ok-text' }}">{{ m.updates_available }}</strong></div>
-                  <div>Security: <strong class="{{ 'danger-text' if m.security_updates_available else 'ok-text' }}">{{ m.security_updates_available }}</strong></div>
-                  <div class="row-sub">Auto patch: {{ "yes" if m.auto_patch else "no" }}, auto reboot: {{ "yes" if m.auto_reboot else "no" }}</div>
-                </td>
-                <td>
-                  <div class="package-grid">
-                    {% for g in groups %}
-                      {% if m.id in group_map and g.id in group_map[m.id] %}
-                        <span class="badge purple">{{ g.name }}</span>
-                      {% endif %}
-                    {% endfor %}
-                  </div>
-                </td>
-                <td>
-                  <div>{{ m.last_seen or "-" }}</div>
-                  <div class="row-sub">Last success: {{ m.last_success_at or "-" }}</div>
-                </td>
-                <td>
-                  <div class="actions">
-                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/jobs">
-                      <select name="action">
-                        <option value="check_updates">check</option>
-                        <option value="upgrade">upgrade</option>
-                        <option value="security_upgrade">security upgrade</option>
-                        <option value="apt_clean">apt clean</option>
-                        <option value="self_update">update agent</option>
-                        <option value="reboot">reboot</option>
-                      </select>
-                      <label class="small"><input type="checkbox" name="allow_reboot" value="true"> reboot</label>
-                      <button class="primary" type="submit">Queue</button>
-                    </form>
-
-                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/settings">
-                      <label class="small"><input type="checkbox" name="auto_patch" value="true" {% if m.auto_patch %}checked{% endif %}> auto patch</label>
-                      <label class="small"><input type="checkbox" name="auto_reboot" value="true" {% if m.auto_reboot %}checked{% endif %}> auto reboot</label>
-                      <button type="submit">Save</button>
-                    </form>
-
-                    {% if not m.approved and m.approval_status != 'rejected' %}
-                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/approve">
-                        <button class="primary" type="submit">Approve agent</button>
-                      </form>
-                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/reject" data-confirm="Reject this agent?">
-                        <button class="danger" type="submit">Reject</button>
-                      </form>
-                    {% endif %}
-
-                    {% if m.active %}
-                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/disable">
-                        <input name="reason" value="disabled by admin">
-                        <button type="submit">Disable</button>
-                      </form>
-                    {% else %}
-                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/enable">
-                        <button type="submit">Enable</button>
-                      </form>
-                    {% endif %}
-
-                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete-jobs" data-confirm="Delete all jobs for this machine?">
-                      <button class="ghost" type="submit">Clear jobs</button>
-                    </form>
-
-                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete" data-confirm="Delete this agent and all its data?">
-                      <button class="danger" type="submit">Delete</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </section>
-
-      <section class="section" id="jobs">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Job operations</h2>
-            <p class="section-desc">Patch jobs, approval queue, execution output and failures.</p>
+          <div class="kpi-card red">
+            <div class="kpi-icon red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <div class="kpi-label">Security exposure</div>
+            <div class="kpi-value" style="{{ 'color:var(--red)' if ns.security > 0 else '' }}">{{ ns.security }}</div>
+            <div class="kpi-sub">agents with unpatched CVEs</div>
           </div>
-          <span class="badge warn">{{ jobs|length }} latest</span>
+
+          <div class="kpi-card yellow">
+            <div class="kpi-icon yellow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </div>
+            <div class="kpi-label">Reboot required</div>
+            <div class="kpi-value">{{ ns.reboot }}</div>
+            <div class="kpi-sub">agents awaiting restart</div>
+          </div>
+
+          <div class="kpi-card green">
+            <div class="kpi-icon green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <div class="kpi-label">Job queue</div>
+            <div class="kpi-value">{{ ns.pending }}</div>
+            <div class="kpi-sub">{{ ns.approval }} awaiting approval · {{ ns.failed }} failed</div>
+          </div>
         </div>
 
-        <div class="table-wrap">
-          <table>
-            <tr>
-              <th>ID</th>
-              <th>Machine</th>
-              <th>Action</th>
-              <th>Status</th>
-              <th>Timing</th>
-              <th>Output</th>
-              <th>Action</th>
-            </tr>
-            {% for j in jobs %}
-              <tr>
-                <td class="mono">#{{ j.id }}</td>
-                <td>
-                  <div class="row-title">{{ j.machine.hostname if j.machine else "-" }}</div>
-                  <div class="row-sub">{{ j.created_by or "" }}</div>
-                </td>
-                <td><span class="badge info">{{ j.action }}</span></td>
-                <td>
-                  {% if j.status == 'success' %}<span class="badge ok">success</span>{% endif %}
-                  {% if j.status == 'failed' %}<span class="badge bad">failed</span>{% endif %}
-                  {% if j.status == 'pending' %}<span class="badge warn">pending</span>{% endif %}
-                  {% if j.status == 'running' %}<span class="badge info">running</span>{% endif %}
-                  {% if j.status == 'approval_required' %}<span class="badge purple">approval</span>{% endif %}
-                  <div class="row-sub">Exit: {{ j.exit_code if j.exit_code is not none else "-" }}</div>
-                </td>
-                <td>
-                  <div>Created: {{ j.created_at }}</div>
-                  <div class="row-sub">Started: {{ j.started_at or "-" }}</div>
-                  <div class="row-sub">Finished: {{ j.finished_at or "-" }}</div>
-                </td>
-                <td><pre>{{ j.output or "" }}</pre></td>
-                <td>
-                  <div class="actions">
-                    {% if j.status == 'approval_required' %}
-                      <form method="post" action="/admin/jobs/{{ j.id }}/approve">
-                        <button class="primary" type="submit">Approve</button>
-                      </form>
-                    {% endif %}
-                    <form method="post" action="/admin/jobs/{{ j.id }}/delete" data-confirm="Delete this job?">
-                      <button class="danger" type="submit">Delete</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </section>
-
-      <div class="two-col">
-        <section class="section" id="groups">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">Groups</h2>
-              <p class="section-desc">Group machines for scheduling and policy operations.</p>
+        {# ── Fleet ──────────────────────────────────────────────── #}
+        <section class="section" id="fleet">
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                </svg>
+              </div>
+              <div>
+                <div class="section-title">Fleet inventory</div>
+                <div class="section-sub">Agent status, patch posture and lifecycle controls</div>
+              </div>
+            </div>
+            <div class="section-actions">
+              {% if ns.pending_approval > 0 %}
+                <span class="badge purple">{{ ns.pending_approval }} pending approval</span>
+              {% endif %}
+              <span class="badge info">{{ machines|length }} agents</span>
             </div>
           </div>
 
-          <form class="form-grid" method="post" action="/admin/groups">
-            <input name="name" placeholder="group name" required>
-            <input name="description" placeholder="description">
-            <button class="primary span" type="submit">Create group</button>
-          </form>
-
-          <form class="form-grid" method="post" action="/admin/groups/assign">
-            <select name="machine_id">
-              {% for m in machines %}<option value="{{ m.id }}">{{ m.hostname }}</option>{% endfor %}
-            </select>
-            <select name="group_id">
-              {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
-            </select>
-            <button class="primary span" type="submit">Assign machine to group</button>
-          </form>
-
-          <form class="form-grid" method="post" action="/admin/groups/unassign">
-            <select name="machine_id">
-              {% for m in machines %}<option value="{{ m.id }}">{{ m.hostname }}</option>{% endfor %}
-            </select>
-            <select name="group_id">
-              {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
-            </select>
-            <button class="span" type="submit">Remove from group</button>
-          </form>
+          <div class="filter-bar">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" class="search-input" id="fleet-search" placeholder="Filter by hostname, ID, group…">
+            </div>
+          </div>
 
           <div class="table-wrap">
-            <table>
-              <tr><th>ID</th><th>Name</th><th>Description</th><th>Action</th></tr>
-              {% for g in groups %}
+            <table id="fleet-table">
+              <thead>
                 <tr>
-                  <td class="mono">{{ g.id }}</td>
-                  <td><span class="badge purple">{{ g.name }}</span></td>
-                  <td>{{ g.description or "" }}</td>
-                  <td>
-                    <form method="post" action="/admin/groups/{{ g.id }}/delete" data-confirm="Delete this group?">
-                      <button class="danger" type="submit">Delete</button>
-                    </form>
-                  </td>
+                  <th>Status</th>
+                  <th>Asset</th>
+                  <th>Platform</th>
+                  <th>Exposure</th>
+                  <th>Groups</th>
+                  <th>Last seen</th>
+                  <th>Actions</th>
                 </tr>
-              {% endfor %}
+              </thead>
+              <tbody>
+                {% for m in machines %}
+                  {% set st = machine_state(m) %}
+                  <tr class="{{ 'security-row' if m.security_updates_available and m.security_updates_available > 0 else '' }}" data-search="{{ m.hostname|lower }} {{ m.machine_id|lower }}">
+                    <td>
+                      <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                        <span class="badge {{ 'ok' if st=='online' else ('warn' if st=='stale' else ('bad' if st=='offline' else 'disabled')) }}">
+                          <span class="status-dot {{ st }}"></span>
+                          {{ st }}
+                        </span>
+                        {% if not m.approved %}<span class="badge purple">approval</span>{% endif %}
+                        {% if m.reboot_required %}<span class="badge warn">reboot</span>{% endif %}
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-title">{{ m.hostname }}</div>
+                      <div class="cell-sub mono">{{ m.machine_id }}</div>
+                      {% if not m.active and m.disabled_reason %}<div class="cell-sub text-danger">{{ m.disabled_reason }}</div>{% endif %}
+                      {% if m.last_error %}<div class="cell-sub text-danger" style="max-width:220px;">{{ m.last_error[:120] }}</div>{% endif %}
+                    </td>
+                    <td>
+                      <div>{{ m.os_version or "—" }}</div>
+                      <div class="cell-sub">Kernel: {{ m.kernel_version or "—" }}</div>
+                      <div class="cell-sub">Agent: {{ m.agent_version or "—" }}</div>
+                    </td>
+                    <td>
+                      <div>Updates: <strong class="{{ 'text-warn' if m.updates_available else 'text-ok' }}">{{ m.updates_available or 0 }}</strong></div>
+                      <div>CVE: <strong class="{{ 'text-danger' if m.security_updates_available else 'text-ok' }}">{{ m.security_updates_available or 0 }}</strong></div>
+                      <div class="cell-sub">
+                        auto patch: {{ "on" if m.auto_patch else "off" }} ·
+                        auto reboot: {{ "on" if m.auto_reboot else "off" }}
+                      </div>
+                    </td>
+                    <td>
+                      <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                        {% for g in groups %}
+                          {% if m.id in group_map and g.id in group_map[m.id] %}
+                            <span class="badge purple">{{ g.name }}</span>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                    </td>
+                    <td>
+                      <div>{{ m.last_seen or "—" }}</div>
+                      <div class="cell-sub">ok: {{ m.last_success_at or "—" }}</div>
+                    </td>
+                    <td>
+                      <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
+
+                        {# Queue job #}
+                        <form class="action-group" method="post" action="/admin/machines/{{ m.id }}/jobs">
+                          <select name="action" style="flex:1; min-width:0;">
+                            <option value="check_updates">Check updates</option>
+                            <option value="upgrade">Full upgrade</option>
+                            <option value="security_upgrade">Security upgrade</option>
+                            <option value="apt_clean">APT clean</option>
+                            <option value="self_update">Update agent</option>
+                            <option value="reboot">Reboot</option>
+                          </select>
+                          <button class="btn btn-primary btn-sm" type="submit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Queue
+                          </button>
+                        </form>
+
+                        {# Settings #}
+                        <form class="action-group" method="post" action="/admin/machines/{{ m.id }}/settings">
+                          <label class="checkbox-label"><input type="checkbox" name="auto_patch" value="true" {% if m.auto_patch %}checked{% endif %}> auto patch</label>
+                          <label class="checkbox-label"><input type="checkbox" name="auto_reboot" value="true" {% if m.auto_reboot %}checked{% endif %}> auto reboot</label>
+                          <button class="btn btn-sm" type="submit">Save</button>
+                        </form>
+
+                        {# Approval #}
+                        {% if not m.approved and m.approval_status != 'rejected' %}
+                          <div class="action-group">
+                            <form method="post" action="/admin/machines/{{ m.id }}/approve">
+                              <button class="btn btn-primary btn-sm" type="submit">Approve</button>
+                            </form>
+                            <form method="post" action="/admin/machines/{{ m.id }}/reject" data-confirm="Reject this agent?">
+                              <button class="btn btn-danger btn-sm" type="submit">Reject</button>
+                            </form>
+                          </div>
+                        {% endif %}
+
+                        {# Enable / disable #}
+                        <div class="action-group">
+                          {% if m.active %}
+                            <form method="post" action="/admin/machines/{{ m.id }}/disable">
+                              <input type="hidden" name="reason" value="disabled by admin">
+                              <button class="btn btn-sm" type="submit">Disable</button>
+                            </form>
+                          {% else %}
+                            <form method="post" action="/admin/machines/{{ m.id }}/enable">
+                              <button class="btn btn-sm" type="submit">Enable</button>
+                            </form>
+                          {% endif %}
+
+                          <form method="post" action="/admin/machines/{{ m.id }}/delete-jobs" data-confirm="Delete all jobs for this machine?">
+                            <button class="btn btn-ghost btn-sm" type="submit">Clear jobs</button>
+                          </form>
+
+                          <form method="post" action="/admin/machines/{{ m.id }}/delete" data-confirm="Delete this agent and all its data?">
+                            <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                          </form>
+                        </div>
+
+                      </div>
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="7">
+                    <div class="empty-state">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                      </svg>
+                      <p>No agents enrolled yet</p>
+                    </div>
+                  </td></tr>
+                {% endfor %}
+              </tbody>
             </table>
           </div>
         </section>
 
-        <section class="section" id="schedules">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">Schedules</h2>
-              <p class="section-desc">Create recurring patch windows for machines or groups.</p>
+        {# ── Jobs ────────────────────────────────────────────────── #}
+        <section class="section" id="jobs">
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div>
+                <div class="section-title">Job operations</div>
+                <div class="section-sub">Execution queue, approval gating, output logs</div>
+              </div>
+            </div>
+            <div class="section-actions">
+              {% if ns.failed > 0 %}<span class="badge bad">{{ ns.failed }} failed</span>{% endif %}
+              {% if ns.approval > 0 %}<span class="badge purple">{{ ns.approval }} approval</span>{% endif %}
+              <span class="badge warn">{{ jobs|length }} total</span>
             </div>
           </div>
-
-          <form class="form-grid full" method="post" action="/admin/schedules" id="schedule-form">
-            <input name="name" placeholder="schedule name" required>
-
-            <select name="target_type" id="schedule-target-type">
-              <option value="machine">machine</option>
-              <option value="group">group</option>
-            </select>
-
-            <select id="schedule-machine-target">
-              {% for m in machines %}
-                <option value="{{ m.id }}">{{ m.hostname }} | {{ m.machine_id }}</option>
-              {% endfor %}
-            </select>
-
-            <select id="schedule-group-target" style="display:none;">
-              {% for g in groups %}
-                <option value="{{ g.id }}">{{ g.name }}</option>
-              {% endfor %}
-            </select>
-
-            <input type="hidden" name="target_id" id="schedule-target-id">
-
-            <select name="action">
-              <option value="check_updates">check</option>
-              <option value="upgrade">upgrade</option>
-              <option value="security_upgrade">security upgrade</option>
-              <option value="apt_clean">apt clean</option>
-              <option value="self_update">update agent</option>
-              <option value="reboot">reboot</option>
-            </select>
-
-            <select name="day_of_week">
-              <option value="all">daily</option>
-              <option value="mon">monday</option>
-              <option value="tue">tuesday</option>
-              <option value="wed">wednesday</option>
-              <option value="thu">thursday</option>
-              <option value="fri">friday</option>
-              <option value="sat">saturday</option>
-              <option value="sun">sunday</option>
-            </select>
-
-            <input name="time_of_day" value="03:00">
-            <input name="timezone" value="Europe/Stockholm">
-
-            <div>
-              <label class="small"><input type="checkbox" name="allow_reboot" value="true"> reboot</label><br>
-              <label class="small"><input type="checkbox" name="require_approval" value="true"> approval</label><br>
-              <label class="small"><input type="checkbox" name="enabled" value="true" checked> enabled</label>
-            </div>
-
-            <div class="span muted small">
-              Target väljs automatiskt från dropdown. Du behöver inte längre slå upp target ID manuellt.
-            </div>
-
-            <button class="primary span" type="submit">Create schedule</button>
-          </form>
 
           <div class="table-wrap">
             <table>
-              <tr><th>ID</th><th>Name</th><th>Target</th><th>Action</th><th>Window</th><th>Flags</th><th>Action</th></tr>
-              {% for s in schedules %}
+              <thead>
                 <tr>
-                  <td class="mono">{{ s.id }}</td>
-                  <td>{{ s.name }}</td>
-                  <td>{{ s.target_type }}:{{ s.target_id }}</td>
-                  <td><span class="badge info">{{ s.action }}</span></td>
-                  <td>{{ s.day_of_week }} {{ s.time_of_day }}<br><span class="row-sub">{{ s.timezone }}</span></td>
-                  <td>
-                    {% if s.enabled %}<span class="badge ok">enabled</span>{% else %}<span class="badge disabled">disabled</span>{% endif %}
-                    {% if s.allow_reboot %}<span class="badge warn">reboot</span>{% endif %}
-                    {% if s.require_approval %}<span class="badge purple">approval</span>{% endif %}
-                    <div class="row-sub">Last run: {{ s.last_run_at or "-" }}</div>
-                  </td>
-                  <td>
-                    <form method="post" action="/admin/schedules/{{ s.id }}/delete" data-confirm="Delete this schedule?">
-                      <button class="danger" type="submit">Delete</button>
-                    </form>
-                  </td>
+                  <th>#</th>
+                  <th>Machine</th>
+                  <th>Action</th>
+                  <th>Status</th>
+                  <th>Timing</th>
+                  <th>Output</th>
+                  <th></th>
                 </tr>
-              {% endfor %}
+              </thead>
+              <tbody>
+                {% for j in jobs %}
+                  <tr>
+                    <td class="mono text-muted">#{{ j.id }}</td>
+                    <td>
+                      <div class="cell-title">{{ j.machine.hostname if j.machine else "—" }}</div>
+                      <div class="cell-sub">{{ j.created_by or "" }}</div>
+                    </td>
+                    <td><span class="badge cyan">{{ j.action }}</span></td>
+                    <td>
+                      {% if j.status == 'success'          %}<span class="badge ok">success</span>
+                      {% elif j.status == 'failed'         %}<span class="badge bad">failed</span>
+                      {% elif j.status == 'pending'        %}<span class="badge warn">pending</span>
+                      {% elif j.status == 'running'        %}<span class="badge info">running</span>
+                      {% elif j.status == 'approval_required' %}<span class="badge purple">approval</span>
+                      {% else %}<span class="badge disabled">{{ j.status }}</span>{% endif %}
+                      <div class="cell-sub">exit: {{ j.exit_code if j.exit_code is not none else "—" }}</div>
+                    </td>
+                    <td>
+                      <div class="text-sm">{{ j.created_at }}</div>
+                      <div class="cell-sub">start: {{ j.started_at or "—" }}</div>
+                      <div class="cell-sub">end: {{ j.finished_at or "—" }}</div>
+                    </td>
+                    <td style="max-width:280px;"><pre>{{ j.output or "" }}</pre></td>
+                    <td>
+                      <div style="display:flex; flex-direction:column; gap:5px;">
+                        {% if j.status == 'approval_required' %}
+                          <form method="post" action="/admin/jobs/{{ j.id }}/approve">
+                            <button class="btn btn-primary btn-sm" type="submit">Approve</button>
+                          </form>
+                        {% endif %}
+                        <form method="post" action="/admin/jobs/{{ j.id }}/delete" data-confirm="Delete this job?">
+                          <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="7">
+                    <div class="empty-state">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      <p>No jobs queued</p>
+                    </div>
+                  </td></tr>
+                {% endfor %}
+              </tbody>
             </table>
           </div>
         </section>
-      </div>
 
-      <section class="section" id="packages">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Package exposure</h2>
-            <p class="section-desc">Latest reported package updates from agents.</p>
+        {# ── Groups & Schedules ──────────────────────────────────── #}
+        <div class="two-col">
+
+          {# Groups #}
+          <section class="section" id="groups">
+            <div class="section-head">
+              <div class="section-head-left">
+                <div class="section-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="section-title">Groups</div>
+                  <div class="section-sub">Logical machine collections</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-panel">
+              <div class="text-xs text-faint" style="margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:.07em;">Create group</div>
+              <form class="form-row" method="post" action="/admin/groups">
+                <div class="form-field" style="flex:1;">
+                  <input name="name" placeholder="Group name" required>
+                </div>
+                <div class="form-field" style="flex:1;">
+                  <input name="description" placeholder="Description">
+                </div>
+                <button class="btn btn-primary" type="submit" style="align-self:flex-end;">Create</button>
+              </form>
+            </div>
+
+            <div class="form-panel">
+              <div class="text-xs text-faint" style="margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:.07em;">Assign / remove</div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <form class="form-row" method="post" action="/admin/groups/assign">
+                  <select name="machine_id" style="flex:1;">
+                    {% for m in machines %}<option value="{{ m.id }}">{{ m.hostname }}</option>{% endfor %}
+                  </select>
+                  <select name="group_id" style="flex:1;">
+                    {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                  </select>
+                  <button class="btn btn-primary" type="submit">Add</button>
+                </form>
+                <form class="form-row" method="post" action="/admin/groups/unassign">
+                  <select name="machine_id" style="flex:1;">
+                    {% for m in machines %}<option value="{{ m.id }}">{{ m.hostname }}</option>{% endfor %}
+                  </select>
+                  <select name="group_id" style="flex:1;">
+                    {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                  </select>
+                  <button class="btn" type="submit">Remove</button>
+                </form>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>ID</th><th>Name</th><th>Description</th><th></th></tr></thead>
+                <tbody>
+                  {% for g in groups %}
+                    <tr>
+                      <td class="mono text-faint">{{ g.id }}</td>
+                      <td><span class="badge purple">{{ g.name }}</span></td>
+                      <td class="text-muted text-sm">{{ g.description or "—" }}</td>
+                      <td>
+                        <form method="post" action="/admin/groups/{{ g.id }}/delete" data-confirm="Delete group {{ g.name }}?">
+                          <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr><td colspan="4"><div class="empty-state" style="padding:20px;">
+                      <p>No groups yet</p>
+                    </div></td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {# Schedules #}
+          <section class="section" id="schedules">
+            <div class="section-head">
+              <div class="section-head-left">
+                <div class="section-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="section-title">Schedules</div>
+                  <div class="section-sub">Recurring patch windows</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-panel">
+              <div class="text-xs text-faint" style="margin-bottom:10px; font-weight:600; text-transform:uppercase; letter-spacing:.07em;">New schedule</div>
+              <form id="schedule-form" method="post" action="/admin/schedules" style="display:flex; flex-direction:column; gap:8px;">
+                <div class="form-row">
+                  <div class="form-field" style="flex:2;">
+                    <label class="form-label">Name</label>
+                    <input name="name" placeholder="nightly-security" required>
+                  </div>
+                  <div class="form-field" style="flex:1;">
+                    <label class="form-label">Action</label>
+                    <select name="action">
+                      <option value="check_updates">Check updates</option>
+                      <option value="upgrade">Full upgrade</option>
+                      <option value="security_upgrade">Security upgrade</option>
+                      <option value="apt_clean">APT clean</option>
+                      <option value="self_update">Update agent</option>
+                      <option value="reboot">Reboot</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-field" style="flex:1;">
+                    <label class="form-label">Target type</label>
+                    <select name="target_type" id="schedule-target-type">
+                      <option value="machine">Machine</option>
+                      <option value="group">Group</option>
+                    </select>
+                  </div>
+                  <div class="form-field" style="flex:2;">
+                    <label class="form-label">Target</label>
+                    <select id="schedule-machine-target">
+                      {% for m in machines %}<option value="{{ m.id }}">{{ m.hostname }}</option>{% endfor %}
+                    </select>
+                    <select id="schedule-group-target" style="display:none;">
+                      {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                    </select>
+                    <input type="hidden" name="target_id" id="schedule-target-id">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-field" style="flex:1;">
+                    <label class="form-label">Day</label>
+                    <select name="day_of_week">
+                      <option value="all">Daily</option>
+                      <option value="mon">Monday</option>
+                      <option value="tue">Tuesday</option>
+                      <option value="wed">Wednesday</option>
+                      <option value="thu">Thursday</option>
+                      <option value="fri">Friday</option>
+                      <option value="sat">Saturday</option>
+                      <option value="sun">Sunday</option>
+                    </select>
+                  </div>
+                  <div class="form-field" style="flex:1;">
+                    <label class="form-label">Time (HH:MM)</label>
+                    <input name="time_of_day" value="03:00" placeholder="03:00">
+                  </div>
+                  <div class="form-field" style="flex:1;">
+                    <label class="form-label">Timezone</label>
+                    <input name="timezone" value="Europe/Stockholm">
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:14px; flex-wrap:wrap; padding:4px 0;">
+                  <label class="checkbox-label"><input type="checkbox" name="allow_reboot" value="true"> allow reboot</label>
+                  <label class="checkbox-label"><input type="checkbox" name="require_approval" value="true"> require approval</label>
+                  <label class="checkbox-label"><input type="checkbox" name="enabled" value="true" checked> enabled</label>
+                </div>
+
+                <button class="btn btn-primary" type="submit">Create schedule</button>
+              </form>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Target</th><th>Action</th><th>Window</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  {% for s in schedules %}
+                    <tr>
+                      <td class="fw-bold">{{ s.name }}</td>
+                      <td class="text-sm text-muted">{{ s.target_type }}:{{ s.target_id }}</td>
+                      <td><span class="badge cyan">{{ s.action }}</span></td>
+                      <td>
+                        <div>{{ s.day_of_week }} {{ s.time_of_day }}</div>
+                        <div class="cell-sub">{{ s.timezone }}</div>
+                      </td>
+                      <td>
+                        <div style="display:flex; flex-direction:column; gap:3px; align-items:flex-start;">
+                          {% if s.enabled %}<span class="badge ok">enabled</span>{% else %}<span class="badge disabled">disabled</span>{% endif %}
+                          {% if s.allow_reboot %}<span class="badge warn">reboot</span>{% endif %}
+                          {% if s.require_approval %}<span class="badge purple">approval</span>{% endif %}
+                        </div>
+                        <div class="cell-sub">last: {{ s.last_run_at or "—" }}</div>
+                      </td>
+                      <td>
+                        <form method="post" action="/admin/schedules/{{ s.id }}/delete" data-confirm="Delete schedule {{ s.name }}?">
+                          <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr><td colspan="6"><div class="empty-state" style="padding:20px;"><p>No schedules configured</p></div></td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        {# ── Package exposure ─────────────────────────────────────── #}
+        <section class="section" id="packages">
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                </svg>
+              </div>
+              <div>
+                <div class="section-title">Package exposure</div>
+                <div class="section-sub">Latest reported packages with pending updates</div>
+              </div>
+            </div>
+            {% if ns.security > 0 %}
+              <span class="badge bad">{{ ns.security }} CVE packages</span>
+            {% endif %}
           </div>
-          <span class="badge bad">security tracked</span>
-        </div>
 
-        <div class="table-wrap">
-          <table>
-            <tr><th>Machine</th><th>Package</th><th>Current</th><th>Candidate</th><th>Risk</th></tr>
-            {% for p in packages %}
-              <tr>
-                <td>{{ p.machine.hostname if p.machine else "-" }}</td>
-                <td class="mono">{{ p.package }}</td>
-                <td class="mono">{{ p.current_version or "-" }}</td>
-                <td class="mono">{{ p.candidate_version or "-" }}</td>
-                <td>{% if p.security %}<span class="badge bad">security</span>{% else %}<span class="badge disabled">standard</span>{% endif %}</td>
-              </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </section>
-
-      <section class="section" id="audit">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Audit log</h2>
-            <p class="section-desc">Administrative and agent security events.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Machine</th><th>Package</th><th>Current</th><th>Candidate</th><th>Risk</th></tr>
+              </thead>
+              <tbody>
+                {% for p in packages %}
+                  <tr class="{{ 'security-row' if p.security else '' }}">
+                    <td class="fw-bold">{{ p.machine.hostname if p.machine else "—" }}</td>
+                    <td class="mono">{{ p.package }}</td>
+                    <td class="mono text-muted">{{ p.current_version or "—" }}</td>
+                    <td class="mono" style="{{ 'color:var(--green)' if p.candidate_version else '' }}">{{ p.candidate_version or "—" }}</td>
+                    <td>
+                      {% if p.security %}<span class="badge bad">CVE</span>{% else %}<span class="badge disabled">standard</span>{% endif %}
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="5"><div class="empty-state"><p>No packages reported yet</p></div></td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
+        </section>
+
+        {# ── Audit log ────────────────────────────────────────────── #}
+        <section class="section" id="audit">
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <div class="section-title">Audit log</div>
+                <div class="section-sub">Administrative and agent security events</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
+              </thead>
+              <tbody>
+                {% for a in audits %}
+                  <tr>
+                    <td class="mono text-faint text-sm">{{ a.created_at }}</td>
+                    <td><span class="badge info">{{ a.actor }}</span></td>
+                    <td class="fw-bold">{{ a.action }}</td>
+                    <td class="text-muted text-sm">{{ a.target_type or "" }} {{ a.target_id or "" }}</td>
+                    <td class="text-muted text-sm">{{ a.details or "" }}</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="5"><div class="empty-state"><p>No audit events recorded</p></div></td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="page-footer">
+          PatchPilot Enterprise · Admin interface · Internal only · v{{ version }}
         </div>
 
-        <div class="table-wrap">
-          <table>
-            <tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
-            {% for a in audits %}
-              <tr>
-                <td>{{ a.created_at }}</td>
-                <td><span class="badge info">{{ a.actor }}</span></td>
-                <td>{{ a.action }}</td>
-                <td>{{ a.target_type or "" }} {{ a.target_id or "" }}</td>
-                <td>{{ a.details or "" }}</td>
-              </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </section>
-
-      <div class="footer-note">
-        PatchPilot Enterprise UI. Admin should remain internal only. Public hostname should expose agent endpoints only.
-      </div>
+      </div>{# /content #}
     </main>
   </div>
 
 <script>
-  function patchpilotScheduleTargetSync() {
-    const targetType = document.getElementById("schedule-target-type");
-    const machineSelect = document.getElementById("schedule-machine-target");
-    const groupSelect = document.getElementById("schedule-group-target");
-    const targetId = document.getElementById("schedule-target-id");
+(function () {
+  "use strict";
 
-    if (!targetType || !machineSelect || !groupSelect || !targetId) {
-      return;
-    }
-
-    if (targetType.value === "group") {
-      machineSelect.style.display = "none";
-      groupSelect.style.display = "";
-      groupSelect.disabled = false;
-      machineSelect.disabled = true;
-      targetId.value = groupSelect.value || "";
-    } else {
-      groupSelect.style.display = "none";
-      machineSelect.style.display = "";
-      machineSelect.disabled = false;
-      groupSelect.disabled = true;
-      targetId.value = machineSelect.value || "";
-    }
+  // ── CSRF injection ──────────────────────────────────────────────
+  var csrfMeta = document.querySelector("meta[name='csrf-token']");
+  if (csrfMeta) {
+    document.querySelectorAll("form[method='post']").forEach(function (form) {
+      var inp = document.createElement("input");
+      inp.type  = "hidden";
+      inp.name  = "csrf_token";
+      inp.value = csrfMeta.content;
+      form.appendChild(inp);
+    });
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
-    // Inject CSRF token into all POST forms
-    const csrfMeta = document.querySelector("meta[name='csrf-token']");
-    if (csrfMeta) {
-      document.querySelectorAll("form[method='post']").forEach(function (form) {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = "csrf_token";
-        input.value = csrfMeta.content;
-        form.appendChild(input);
-      });
-    }
+  // ── Safe confirm dialogs ────────────────────────────────────────
+  document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+    form.addEventListener("submit", function (e) {
+      if (!confirm(this.dataset.confirm)) e.preventDefault();
+    });
+  });
 
-    // Safe confirm dialogs via data-confirm (avoids XSS in inline JS)
-    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
-      form.addEventListener("submit", function (e) {
-        if (!confirm(this.dataset.confirm)) e.preventDefault();
+  // ── Fleet search / filter ───────────────────────────────────────
+  var searchInput = document.getElementById("fleet-search");
+  if (searchInput) {
+    searchInput.addEventListener("input", function () {
+      var q = this.value.toLowerCase();
+      document.querySelectorAll("#fleet-table tbody tr[data-search]").forEach(function (row) {
+        row.style.display = row.dataset.search.includes(q) ? "" : "none";
       });
     });
+  }
 
-    // Schedule target dropdown sync
-    const targetType = document.getElementById("schedule-target-type");
-    const machineSelect = document.getElementById("schedule-machine-target");
-    const groupSelect = document.getElementById("schedule-group-target");
-    const form = document.getElementById("schedule-form");
+  // ── Schedule target dropdown sync ──────────────────────────────
+  var schedTargetType    = document.getElementById("schedule-target-type");
+  var schedMachineSelect = document.getElementById("schedule-machine-target");
+  var schedGroupSelect   = document.getElementById("schedule-group-target");
+  var schedTargetId      = document.getElementById("schedule-target-id");
+  var schedForm          = document.getElementById("schedule-form");
 
-    if (targetType) targetType.addEventListener("change", patchpilotScheduleTargetSync);
-    if (machineSelect) machineSelect.addEventListener("change", patchpilotScheduleTargetSync);
-    if (groupSelect) groupSelect.addEventListener("change", patchpilotScheduleTargetSync);
+  function syncScheduleTarget() {
+    if (!schedTargetType) return;
+    var isMachine = schedTargetType.value === "machine";
+    schedMachineSelect.style.display = isMachine ? "" : "none";
+    schedGroupSelect.style.display   = isMachine ? "none" : "";
+    schedMachineSelect.disabled       = !isMachine;
+    schedGroupSelect.disabled         = isMachine;
+    schedTargetId.value = isMachine
+      ? (schedMachineSelect.value || "")
+      : (schedGroupSelect.value  || "");
+  }
 
-    if (form) {
-      form.addEventListener("submit", function (event) {
-        patchpilotScheduleTargetSync();
-        const targetId = document.getElementById("schedule-target-id");
-        if (!targetId || !targetId.value) {
-          event.preventDefault();
-          alert("No target selected. Create at least one machine or group first.");
-        }
-      });
+  if (schedTargetType)    schedTargetType.addEventListener("change", syncScheduleTarget);
+  if (schedMachineSelect) schedMachineSelect.addEventListener("change", syncScheduleTarget);
+  if (schedGroupSelect)   schedGroupSelect.addEventListener("change", syncScheduleTarget);
+
+  if (schedForm) {
+    schedForm.addEventListener("submit", function (e) {
+      syncScheduleTarget();
+      if (!schedTargetId || !schedTargetId.value) {
+        e.preventDefault();
+        alert("No target selected. Create at least one machine or group first.");
+      }
+    });
+  }
+
+  syncScheduleTarget();
+
+  // ── Live clock in topbar (optional cosmetic) ────────────────────
+  var clockEl = document.getElementById("live-clock");
+  if (clockEl) {
+    function tick() {
+      clockEl.textContent = new Date().toLocaleTimeString("sv-SE");
     }
-
-    patchpilotScheduleTargetSync();
-  });
+    tick();
+    setInterval(tick, 1000);
+  }
+}());
 </script>
 
 </body>

@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: patchpilot-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-patchpilot}
+      POSTGRES_USER: ${POSTGRES_USER:-patchpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: patchpilot-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-patchpilot}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-patchpilot}
+      APP_SECRET: ${APP_SECRET:-change-me-long-random}
+      PUBLIC_AGENT_URL: ${PUBLIC_AGENT_URL:-https://patch.example.com}
+      AGENT_PUBLIC_HOSTNAME: ${AGENT_PUBLIC_HOSTNAME:-patch.example.com}
+      ADMIN_INTERNAL_HOSTNAMES: ${ADMIN_INTERNAL_HOSTNAMES:-patch-admin.example.com,localhost,127.0.0.1}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      PATCHPILOT_AUTO_AGENT_UPDATE: ${PATCHPILOT_AUTO_AGENT_UPDATE:-false}
+      PATCHPILOT_AUTO_APPROVE_AGENTS: ${PATCHPILOT_AUTO_APPROVE_AGENTS:-false}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    depends_on:
+      - postgres
+    ports:
+      - "8080"
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: patchpilot-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: patchpilot-caddy
+    depends_on:
+      - backend
+    ports:
+      - "192.168.1.100:80:80"
+      - "192.168.1.100:443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/etc/caddy/certs:ro
+      - ./data/caddy/data:/data
+      - ./data/caddy/config:/config
+    restart: unless-stopped

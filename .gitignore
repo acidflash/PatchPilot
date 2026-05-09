@@ -1,0 +1,144 @@
+# -------------------------
+# PatchPilot secrets
+# -------------------------
+.env
+.env.*
+!.env.example
+
+# Cloudflare tunnel tokens / credentials
+cloudflared/
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+*.jks
+*.kdb
+*.json.credentials
+credentials.json
+cert.pem
+
+# Internal PKI / Caddy certs
+caddy/certs/*
+!caddy/certs/.gitkeep
+
+# -------------------------
+# Runtime data
+# -------------------------
+data/
+logs/
+*.log
+*.pid
+
+# PostgreSQL / Caddy runtime volumes
+data/postgres/
+data/caddy/
+data/cloudflared/
+
+# PatchPilot generated backups from patch scripts
+_backup_*/
+_backup-*/
+backup/
+backups/
+
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.python-version
+
+venv/
+.venv/
+env/
+ENV/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# -------------------------
+# Docker / Compose local overrides
+# -------------------------
+docker-compose.override.yml
+compose.override.yml
+
+# Keep compose files tracked
+!docker-compose.yml
+!compose.yml
+
+# -------------------------
+# Local database files
+# -------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+# -------------------------
+# Agent local/generated config
+# -------------------------
+agent.json
+bootstrap.json
+machine-id
+
+# If you ever test agent config inside repo
+etc/patchpilot/
+tmp/
+temp/
+
+# -------------------------
+# Editor / OS junk
+# -------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# -------------------------
+# Shell history / generated patch files
+# -------------------------
+*.bak
+*.orig
+*.rej
+
+# Optional: ignore generated patch helper scripts if you do not want them in repo
+# patchpilot-*.sh
+
+# -------------------------
+# Node/frontend, if added later
+# -------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -------------------------
+# Terraform/IaC, if added later
+# -------------------------
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+terraform.tfvars.json
+
+# -------------------------
+# PatchPilot secrets
+# -------------------------
+.env
+.env.*
+!.env.example

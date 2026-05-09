@@ -142,3 +142,15 @@ terraform.tfvars.json
 .env
 .env.*
 !.env.example
+
+# -------------------------
+# Backups
+# -------------------------
+_backup_*/
+_backup-*/
+backup/
+backups/
+*.bak
+*.backup
+*.orig
+*.old

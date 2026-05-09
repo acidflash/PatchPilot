@@ -135,3 +135,10 @@ pnpm-debug.log*
 *.tfstate.*
 terraform.tfvars
 terraform.tfvars.json
+
+# -------------------------
+# PatchPilot secrets
+# -------------------------
+.env
+.env.*
+!.env.example

@@ -107,6 +107,8 @@ scheduler = BackgroundScheduler(timezone="UTC")
 
 
 def migrate_db():
+    if "sqlite" in str(engine.url):
+        return  # SQLite uses create_all; ALTER TABLE IF NOT EXISTS is PostgreSQL-only
     statements = [
         "ALTER TABLE machines ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT TRUE",
         "ALTER TABLE machines ADD COLUMN IF NOT EXISTS approval_status VARCHAR(64) DEFAULT 'approved'",

@@ -1,18 +1,25 @@
+import base64
+import hashlib
+import hmac
 import json
 import os
+import re
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from urllib import request as urllib_request
 from zoneinfo import ZoneInfo
+
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
 from .db import Base, engine, get_db, SessionLocal
 from .models import AuditLog, Group, Job, Machine, MachineGroup, PackageUpdate, Schedule
-from .security import hash_token, new_token, verify_token
-import hashlib
+from .security import hash_token, make_csrf_token, new_token, verify_csrf_token, verify_token
 
 APP_VERSION = "0.4.5"
 ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot", "security_upgrade", "self_update", "upgrade"}
@@ -20,8 +27,6 @@ DAYS = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="PatchPilot", version=APP_VERSION)
-from fastapi.responses import PlainTextResponse
-import os
 
 AGENT_PUBLIC_HOSTNAME = os.getenv("AGENT_PUBLIC_HOSTNAME", "patch.labnat.xyz")
 ADMIN_INTERNAL_HOSTNAMES = {
@@ -33,12 +38,48 @@ ADMIN_INTERNAL_HOSTNAMES = {
     if h.strip()
 }
 
+# Per-IP enrollment rate limiter (in-memory, resets on restart)
+_enroll_timestamps: dict[str, list[float]] = defaultdict(list)
+_ENROLL_RATE_MAX = 10  # requests per IP per hour
+
+
+def _check_enroll_rate(ip: str) -> bool:
+    now = time.time()
+    valid = [t for t in _enroll_timestamps[ip] if now - t < 3600.0]
+    _enroll_timestamps[ip] = valid
+    if len(valid) >= _ENROLL_RATE_MAX:
+        return False
+    _enroll_timestamps[ip].append(now)
+    return True
+
+
 @app.middleware("http")
-async def host_path_guard(request, call_next):
+async def admin_auth_middleware(request: Request, call_next):
+    """HTTP Basic Auth for /admin routes. Enabled only when ADMIN_PASSWORD is set."""
+    admin_password = os.getenv("ADMIN_PASSWORD", "").strip()
+    if admin_password and request.url.path.startswith("/admin"):
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(auth[6:]).decode(errors="replace")
+                _, _, pw = decoded.partition(":")
+                if hmac.compare_digest(pw, admin_password):
+                    return await call_next(request)
+            except Exception:
+                pass
+        return Response(
+            "Unauthorized",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="PatchPilot Admin"'},
+        )
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def host_path_guard(request: Request, call_next):
     host = request.headers.get("host", "").split(":")[0].lower()
     path = request.url.path
 
-    # Public Cloudflare hostname: agent endpoints only.
     if host == AGENT_PUBLIC_HOSTNAME.lower():
         allowed = (
             path == "/healthz"
@@ -46,18 +87,24 @@ async def host_path_guard(request, call_next):
             or path.startswith("/agent/")
             or path.startswith("/api/v1/agent/")
         )
-
         if not allowed:
             return PlainTextResponse("not found", status_code=404)
 
-    # Internal admin hostnames: block public agent API if you want hard separation.
     if host in {h.lower() for h in ADMIN_INTERNAL_HOSTNAMES}:
         if path.startswith("/api/v1/agent/") or path.startswith("/agent/") or path == "/install.sh":
             return PlainTextResponse("not found", status_code=404)
 
     return await call_next(request)
+
+
+def require_csrf(csrf_token: str = Form(default="")) -> None:
+    if not verify_csrf_token(csrf_token):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token")
+
+
 templates = Jinja2Templates(directory="app/templates")
 scheduler = BackgroundScheduler(timezone="UTC")
+
 
 def migrate_db():
     statements = [
@@ -80,9 +127,11 @@ def migrate_db():
         conn.execute(text("UPDATE machines SET approval_status = 'approved' WHERE approval_status IS NULL"))
         conn.execute(text("UPDATE machines SET first_seen = created_at WHERE first_seen IS NULL"))
 
+
 def audit(db: Session, action: str, actor: str = "admin", target_type: str | None = None, target_id: str | None = None, details: str | None = None, request: Request | None = None):
     ip = request.client.host if request and request.client else None
     db.add(AuditLog(actor=actor, action=action, target_type=target_type, target_id=target_id, ip_address=ip, details=details))
+
 
 def notify_discord(message: str):
     url = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
@@ -102,6 +151,7 @@ def notify_discord(message: str):
         urllib_request.urlopen(req, timeout=10).read()
     except Exception:
         pass
+
 
 def machine_state(machine: Machine) -> str:
     if not machine.active:
@@ -131,16 +181,19 @@ def latest_agent_info():
     except Exception:
         return {"version": "unknown", "sha256": "", "url": "/agent/patchpilot-agent.py"}
 
+
 def version_tuple(v: str):
     try:
         return tuple(int(x) for x in re.findall(r"\d+", v)[:3])
     except Exception:
         return (0, 0, 0)
 
+
 def agent_is_outdated(current: str | None, latest: str | None) -> bool:
     if not current or not latest or latest == "unknown":
         return False
     return version_tuple(current) < version_tuple(latest)
+
 
 def get_agent(db: Session, x_agent_id: str | None, authorization: str | None) -> Machine:
     if not x_agent_id or not authorization or not authorization.startswith("Bearer "):
@@ -153,6 +206,7 @@ def get_agent(db: Session, x_agent_id: str | None, authorization: str | None) ->
         raise HTTPException(status_code=401, detail="Bad agent token")
     return machine
 
+
 def targets_for_schedule(db: Session, schedule: Schedule) -> list[Machine]:
     if schedule.target_type == "machine":
         m = db.query(Machine).filter(Machine.id == schedule.target_id, Machine.active == True).first()
@@ -160,6 +214,7 @@ def targets_for_schedule(db: Session, schedule: Schedule) -> list[Machine]:
     if schedule.target_type == "group":
         return db.query(Machine).join(MachineGroup, MachineGroup.machine_id == Machine.id).filter(MachineGroup.group_id == schedule.target_id, Machine.active == True).all()
     return []
+
 
 def run_schedules():
     db = SessionLocal()
@@ -196,7 +251,9 @@ def run_schedules():
     finally:
         db.close()
 
+
 migrate_db()
+
 
 @app.on_event("startup")
 def startup():
@@ -204,13 +261,16 @@ def startup():
         scheduler.add_job(run_schedules, "interval", seconds=60, id="patchpilot_scheduler", replace_existing=True)
         scheduler.start()
 
+
 @app.get("/healthz", response_class=PlainTextResponse)
 def healthz():
     return "ok"
 
+
 @app.get("/", response_class=HTMLResponse)
 def root():
     return RedirectResponse("/admin")
+
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin(request: Request, db: Session = Depends(get_db)):
@@ -224,10 +284,23 @@ def admin(request: Request, db: Session = Depends(get_db)):
     group_map = {}
     for mg in machine_groups:
         group_map.setdefault(mg.machine_id, []).append(mg.group_id)
-    return templates.TemplateResponse("admin.html", {"request": request, "version": APP_VERSION, "machines": machines, "jobs": jobs, "groups": groups, "schedules": schedules, "packages": packages, "audits": audits, "group_map": group_map, "machine_state": machine_state})
+    return templates.TemplateResponse("admin.html", {
+        "request": request,
+        "version": APP_VERSION,
+        "machines": machines,
+        "jobs": jobs,
+        "groups": groups,
+        "schedules": schedules,
+        "packages": packages,
+        "audits": audits,
+        "group_map": group_map,
+        "machine_state": machine_state,
+        "csrf_token": make_csrf_token(),
+    })
+
 
 @app.post("/admin/machines/{machine_pk}/jobs")
-def create_job(machine_pk: int, action: str = Form(...), allow_reboot: bool = Form(False), db: Session = Depends(get_db), request: Request = None):
+def create_job(machine_pk: int, _: None = Depends(require_csrf), action: str = Form(...), allow_reboot: bool = Form(False), db: Session = Depends(get_db), request: Request = None):
     if action not in ALLOWED_ACTIONS:
         raise HTTPException(status_code=400, detail="Invalid action")
     machine = db.query(Machine).filter(Machine.id == machine_pk).first()
@@ -239,8 +312,9 @@ def create_job(machine_pk: int, action: str = Form(...), allow_reboot: bool = Fo
     notify_discord(f"PatchPilot: job '{action}' queued for {machine.hostname}.")
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/jobs/{job_id}/approve")
-def approve_job(job_id: int, db: Session = Depends(get_db), request: Request = None):
+def approve_job(job_id: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -249,8 +323,9 @@ def approve_job(job_id: int, db: Session = Depends(get_db), request: Request = N
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/jobs/{job_id}/delete")
-def delete_job(job_id: int, db: Session = Depends(get_db), request: Request = None):
+def delete_job(job_id: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     job = db.query(Job).filter(Job.id == job_id).first()
     if job:
         audit(db, "job_deleted", target_type="job", target_id=str(job.id), request=request)
@@ -258,8 +333,9 @@ def delete_job(job_id: int, db: Session = Depends(get_db), request: Request = No
         db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/machines/{machine_pk}/settings")
-def update_machine_settings(machine_pk: int, auto_patch: bool = Form(False), auto_reboot: bool = Form(False), db: Session = Depends(get_db), request: Request = None):
+def update_machine_settings(machine_pk: int, _: None = Depends(require_csrf), auto_patch: bool = Form(False), auto_reboot: bool = Form(False), db: Session = Depends(get_db), request: Request = None):
     machine = db.query(Machine).filter(Machine.id == machine_pk).first()
     if not machine:
         raise HTTPException(status_code=404, detail="Machine not found")
@@ -269,8 +345,9 @@ def update_machine_settings(machine_pk: int, auto_patch: bool = Form(False), aut
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/machines/{machine_pk}/disable")
-def disable_machine(machine_pk: int, reason: str = Form("disabled by admin"), db: Session = Depends(get_db), request: Request = None):
+def disable_machine(machine_pk: int, _: None = Depends(require_csrf), reason: str = Form("disabled by admin"), db: Session = Depends(get_db), request: Request = None):
     machine = db.query(Machine).filter(Machine.id == machine_pk).first()
     if not machine:
         raise HTTPException(status_code=404, detail="Machine not found")
@@ -280,8 +357,9 @@ def disable_machine(machine_pk: int, reason: str = Form("disabled by admin"), db
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/machines/{machine_pk}/enable")
-def enable_machine(machine_pk: int, db: Session = Depends(get_db), request: Request = None):
+def enable_machine(machine_pk: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     machine = db.query(Machine).filter(Machine.id == machine_pk).first()
     if not machine:
         raise HTTPException(status_code=404, detail="Machine not found")
@@ -291,8 +369,9 @@ def enable_machine(machine_pk: int, db: Session = Depends(get_db), request: Requ
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/machines/{machine_pk}/rotate-token")
-def rotate_machine_token(machine_pk: int, db: Session = Depends(get_db), request: Request = None):
+def rotate_machine_token(machine_pk: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     machine = db.query(Machine).filter(Machine.id == machine_pk).first()
     if not machine:
         raise HTTPException(status_code=404, detail="Machine not found")
@@ -302,8 +381,9 @@ def rotate_machine_token(machine_pk: int, db: Session = Depends(get_db), request
     db.commit()
     return PlainTextResponse(f"New token for {machine.hostname}:\n\n{token}\n\nUpdate /etc/patchpilot/agent.json on the client manually.\n")
 
+
 @app.post("/admin/machines/{machine_pk}/delete")
-def delete_machine(machine_pk: int, db: Session = Depends(get_db), request: Request = None):
+def delete_machine(machine_pk: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     machine = db.query(Machine).filter(Machine.id == machine_pk).first()
     if not machine:
         raise HTTPException(status_code=404, detail="Machine not found")
@@ -315,15 +395,20 @@ def delete_machine(machine_pk: int, db: Session = Depends(get_db), request: Requ
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/machines/{machine_pk}/delete-jobs")
-def delete_machine_jobs(machine_pk: int, db: Session = Depends(get_db), request: Request = None):
+def delete_machine_jobs(machine_pk: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
+    machine = db.query(Machine).filter(Machine.id == machine_pk).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
     deleted = db.query(Job).filter(Job.machine_id == machine_pk).delete()
     audit(db, "machine_jobs_deleted", target_type="machine", target_id=str(machine_pk), details=f"deleted={deleted}", request=request)
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/groups")
-def create_group(name: str = Form(...), description: str = Form(""), db: Session = Depends(get_db), request: Request = None):
+def create_group(_: None = Depends(require_csrf), name: str = Form(...), description: str = Form(""), db: Session = Depends(get_db), request: Request = None):
     if db.query(Group).filter(Group.name == name).first():
         raise HTTPException(status_code=409, detail="Group already exists")
     db.add(Group(name=name.strip(), description=description.strip() or None))
@@ -331,8 +416,9 @@ def create_group(name: str = Form(...), description: str = Form(""), db: Session
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/groups/{group_id}/delete")
-def delete_group(group_id: int, db: Session = Depends(get_db), request: Request = None):
+def delete_group(group_id: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     db.query(MachineGroup).filter(MachineGroup.group_id == group_id).delete()
     group = db.query(Group).filter(Group.id == group_id).first()
     if group:
@@ -341,39 +427,78 @@ def delete_group(group_id: int, db: Session = Depends(get_db), request: Request 
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/groups/assign")
-def assign_group(machine_id: int = Form(...), group_id: int = Form(...), db: Session = Depends(get_db), request: Request = None):
+def assign_group(_: None = Depends(require_csrf), machine_id: int = Form(...), group_id: int = Form(...), db: Session = Depends(get_db), request: Request = None):
     if not db.query(MachineGroup).filter(MachineGroup.machine_id == machine_id, MachineGroup.group_id == group_id).first():
         db.add(MachineGroup(machine_id=machine_id, group_id=group_id))
         audit(db, "machine_added_to_group", target_type="machine", target_id=str(machine_id), details=f"group_id={group_id}", request=request)
         db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/groups/unassign")
-def unassign_group(machine_id: int = Form(...), group_id: int = Form(...), db: Session = Depends(get_db), request: Request = None):
+def unassign_group(_: None = Depends(require_csrf), machine_id: int = Form(...), group_id: int = Form(...), db: Session = Depends(get_db), request: Request = None):
     db.query(MachineGroup).filter(MachineGroup.machine_id == machine_id, MachineGroup.group_id == group_id).delete()
     audit(db, "machine_removed_from_group", target_type="machine", target_id=str(machine_id), details=f"group_id={group_id}", request=request)
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/schedules")
-def create_schedule(name: str = Form(...), target_type: str = Form(...), target_id: int = Form(...), action: str = Form(...), day_of_week: str = Form("all"), time_of_day: str = Form("03:00"), timezone: str = Form("Europe/Stockholm"), allow_reboot: bool = Form(False), require_approval: bool = Form(False), enabled: bool = Form(False), db: Session = Depends(get_db), request: Request = None):
+def create_schedule(_: None = Depends(require_csrf), name: str = Form(...), target_type: str = Form(...), target_id: int = Form(...), action: str = Form(...), day_of_week: str = Form("all"), time_of_day: str = Form("03:00"), timezone: str = Form("Europe/Stockholm"), allow_reboot: bool = Form(False), require_approval: bool = Form(False), enabled: bool = Form(False), db: Session = Depends(get_db), request: Request = None):
     if action not in ALLOWED_ACTIONS or target_type not in {"machine", "group"} or day_of_week not in {"all", "mon", "tue", "wed", "thu", "fri", "sat", "sun"}:
         raise HTTPException(status_code=400, detail="Invalid schedule")
+    if not re.fullmatch(r"\d{2}:\d{2}", time_of_day):
+        raise HTTPException(status_code=400, detail="time_of_day must be HH:MM")
     s = Schedule(name=name.strip(), target_type=target_type, target_id=target_id, action=action, day_of_week=day_of_week, time_of_day=time_of_day, timezone=timezone, allow_reboot=allow_reboot, require_approval=require_approval, enabled=enabled)
     db.add(s)
     audit(db, "schedule_created", target_type="schedule", target_id=name, request=request)
     db.commit()
     return RedirectResponse("/admin", status_code=303)
 
+
 @app.post("/admin/schedules/{schedule_id}/delete")
-def delete_schedule(schedule_id: int, db: Session = Depends(get_db), request: Request = None):
+def delete_schedule(schedule_id: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     s = db.query(Schedule).filter(Schedule.id == schedule_id).first()
     if s:
         audit(db, "schedule_deleted", target_type="schedule", target_id=str(s.id), details=s.name, request=request)
         db.delete(s)
         db.commit()
     return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/machines/{machine_pk}/approve")
+def approve_machine(machine_pk: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
+    machine = db.query(Machine).filter(Machine.id == machine_pk).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    machine.approved = True
+    machine.approval_status = "approved"
+    machine.approved_at = datetime.utcnow()
+    machine.rejected_at = None
+    machine.active = True
+    audit(db, "machine_approved", target_type="machine", target_id=str(machine.id), details=machine.hostname, request=request)
+    db.commit()
+    notify_discord(f"PatchPilot: agent approved: {machine.hostname}")
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/machines/{machine_pk}/reject")
+def reject_machine(machine_pk: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
+    machine = db.query(Machine).filter(Machine.id == machine_pk).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    machine.approved = False
+    machine.approval_status = "rejected"
+    machine.rejected_at = datetime.utcnow()
+    machine.active = False
+    db.query(Job).filter(Job.machine_id == machine.id, Job.status.in_(["pending", "approval_required", "running"])).delete()
+    audit(db, "machine_rejected", target_type="machine", target_id=str(machine.id), details=machine.hostname, request=request)
+    db.commit()
+    notify_discord(f"PatchPilot: agent rejected: {machine.hostname}")
+    return RedirectResponse("/admin", status_code=303)
+
 
 @app.post("/api/v1/agent/enroll")
 def enroll_agent(payload: dict, request: Request, db: Session = Depends(get_db)):
@@ -385,6 +510,10 @@ def enroll_agent(payload: dict, request: Request, db: Session = Depends(get_db))
 
     if not machine_id or not hostname:
         raise HTTPException(status_code=400, detail="machine_id and hostname required")
+
+    ip = request.client.host if request.client else "unknown"
+    if not _check_enroll_rate(ip):
+        raise HTTPException(status_code=429, detail="Too many enrollment requests")
 
     existing = db.query(Machine).filter(Machine.machine_id == machine_id).first()
     if existing:
@@ -404,7 +533,7 @@ def enroll_agent(payload: dict, request: Request, db: Session = Depends(get_db))
         machine_id=machine_id,
         hostname=hostname,
         token_hash=hash_token(token),
-        ip_address=request.client.host if request.client else None,
+        ip_address=ip,
         first_seen=datetime.utcnow(),
         last_seen=datetime.utcnow(),
         agent_version=agent_version,
@@ -440,6 +569,7 @@ def enroll_agent(payload: dict, request: Request, db: Session = Depends(get_db))
         "approved": bool(machine.approved),
         "message": "Agent registered. Waiting for admin approval." if not machine.approved else "Agent registered and approved."
     }
+
 
 @app.post("/api/v1/agent/checkin")
 def checkin(
@@ -481,7 +611,7 @@ def checkin(
 
     db.commit()
 
-    latest = latest_agent_info() if "latest_agent_info" in globals() else {"version": "unknown", "sha256": "", "url": ""}
+    latest = latest_agent_info()
     auto_agent_update = os.getenv("PATCHPILOT_AUTO_AGENT_UPDATE", "false").lower() in {"1", "true", "yes", "on"}
 
     if not machine.approved:
@@ -524,10 +654,11 @@ def checkin(
             "latest_version": latest["version"],
             "sha256": latest["sha256"],
             "url": latest["url"],
-            "outdated": agent_is_outdated(machine.agent_version, latest["version"]) if "agent_is_outdated" in globals() else False,
+            "outdated": agent_is_outdated(machine.agent_version, latest["version"]),
         },
         "jobs": [{"id": job.id, "action": job.action, "allow_reboot": job.allow_reboot} for job in jobs],
     }
+
 
 @app.post("/api/v1/agent/jobs/{job_id}/started")
 def job_started(job_id: int, x_agent_id: str | None = Header(default=None), authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
@@ -540,6 +671,7 @@ def job_started(job_id: int, x_agent_id: str | None = Header(default=None), auth
     machine.last_job_at = datetime.utcnow()
     db.commit()
     return {"status": "ok"}
+
 
 @app.post("/api/v1/agent/jobs/{job_id}/result")
 def job_result(job_id: int, payload: dict, x_agent_id: str | None = Header(default=None), authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
@@ -570,10 +702,12 @@ def job_result(job_id: int, payload: dict, x_agent_id: str | None = Header(defau
 def agent_latest():
     return latest_agent_info()
 
+
 @app.get("/agent/patchpilot-agent.py", response_class=PlainTextResponse)
 def download_agent():
     with open("app/static/patchpilot-agent.py", "r", encoding="utf-8") as f:
         return PlainTextResponse(f.read(), media_type="text/x-python; charset=utf-8", headers={"Cache-Control": "no-store"})
+
 
 @app.get("/install.sh", response_class=PlainTextResponse)
 def install_agent_script(request: Request):
@@ -597,6 +731,17 @@ apt-get update
 apt-get install -y python3 ca-certificates unattended-upgrades curl
 install -d -m 700 /etc/patchpilot
 curl -fsSL "$AGENT_URL" -o /usr/local/bin/patchpilot-agent
+AGENT_META=$(curl -fsSL "$SERVER_URL/api/v1/agent/latest" 2>/dev/null || true)
+EXPECTED_SHA=$(echo "$AGENT_META" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha256',''))" 2>/dev/null || true)
+if [ -n "$EXPECTED_SHA" ]; then
+  ACTUAL_SHA=$(sha256sum /usr/local/bin/patchpilot-agent | cut -d' ' -f1)
+  if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+    echo "ERROR: Agent integrity check failed. Expected $EXPECTED_SHA, got $ACTUAL_SHA"
+    rm -f /usr/local/bin/patchpilot-agent
+    exit 1
+  fi
+  echo "[+] Agent integrity verified."
+fi
 chmod 755 /usr/local/bin/patchpilot-agent
 /usr/local/bin/patchpilot-agent --enroll --server "$SERVER_URL"
 cat > /etc/systemd/system/patchpilot-agent.service <<'UNIT'
@@ -626,43 +771,6 @@ systemctl start patchpilot-agent.service || true
 echo "[+] Done. Config: /etc/patchpilot/agent.json"
 '''
     return PlainTextResponse(script, media_type="text/x-shellscript; charset=utf-8", headers={"Cache-Control": "no-store"})
-
-
-# PATCHPILOT_TEMPLATE_APPROVAL_ROUTES
-@app.post("/admin/machines/{machine_pk}/approve")
-def approve_machine(machine_pk: int, db: Session = Depends(get_db), request: Request = None):
-    machine = db.query(Machine).filter(Machine.id == machine_pk).first()
-    if not machine:
-        raise HTTPException(status_code=404, detail="Machine not found")
-
-    machine.approved = True
-    machine.approval_status = "approved"
-    machine.approved_at = datetime.utcnow()
-    machine.rejected_at = None
-    machine.active = True
-
-    audit(db, "machine_approved", target_type="machine", target_id=str(machine.id), details=machine.hostname, request=request)
-    db.commit()
-    notify_discord(f"PatchPilot: agent approved: {machine.hostname}")
-    return RedirectResponse("/admin", status_code=303)
-
-
-@app.post("/admin/machines/{machine_pk}/reject")
-def reject_machine(machine_pk: int, db: Session = Depends(get_db), request: Request = None):
-    machine = db.query(Machine).filter(Machine.id == machine_pk).first()
-    if not machine:
-        raise HTTPException(status_code=404, detail="Machine not found")
-
-    machine.approved = False
-    machine.approval_status = "rejected"
-    machine.rejected_at = datetime.utcnow()
-    machine.active = False
-
-    db.query(Job).filter(Job.machine_id == machine.id, Job.status.in_(["pending", "approval_required", "running"])).delete()
-    audit(db, "machine_rejected", target_type="machine", target_id=str(machine.id), details=machine.hostname, request=request)
-    db.commit()
-    notify_discord(f"PatchPilot: agent rejected: {machine.hostname}")
-    return RedirectResponse("/admin", status_code=303)
 
 
 @app.get("/template-install.sh", response_class=PlainTextResponse)
@@ -708,6 +816,19 @@ apt-get install -y python3 ca-certificates unattended-upgrades curl
 
 install -d -m 700 /etc/patchpilot
 curl -fsSL "$AGENT_URL" -o /usr/local/bin/patchpilot-agent
+
+AGENT_META=$(curl -fsSL "$SERVER_URL/api/v1/agent/latest" 2>/dev/null || true)
+EXPECTED_SHA=$(echo "$AGENT_META" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha256',''))" 2>/dev/null || true)
+if [ -n "$EXPECTED_SHA" ]; then
+  ACTUAL_SHA=$(sha256sum /usr/local/bin/patchpilot-agent | cut -d' ' -f1)
+  if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+    echo "ERROR: Agent integrity check failed. Expected $EXPECTED_SHA, got $ACTUAL_SHA"
+    rm -f /usr/local/bin/patchpilot-agent
+    exit 1
+  fi
+  echo "[+] Agent integrity verified."
+fi
+
 chmod 755 /usr/local/bin/patchpilot-agent
 
 cat > /etc/patchpilot/bootstrap.json <<BOOTSTRAP

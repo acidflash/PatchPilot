@@ -155,6 +155,13 @@ def enroll(server_url):
     resp = http_json("POST", f"{server_url.rstrip('/')}/api/v1/agent/enroll", payload)
 
     if "agent_token" not in resp:
+        if resp.get("message") == "machine already enrolled":
+            print(
+                f"Machine already enrolled (status={resp.get('status')}). "
+                "Use the existing /etc/patchpilot/agent.json or rotate the token via the admin dashboard.",
+                file=sys.stderr,
+            )
+            sys.exit(0)
         print(f"Enroll response did not contain agent_token: {resp}", file=sys.stderr)
         sys.exit(1)
 
@@ -211,7 +218,7 @@ def self_update_agent(update_url, expected_sha256=None):
         if expected_sha256 and expected_sha256 != got_sha256:
             return 1, f"SHA256 mismatch. expected={expected_sha256} got={got_sha256}"
 
-        with tempfile.NamedTemporaryFile("wb", delete=False, dir="/tmp", prefix="patchpilot-agent-", suffix=".new") as tmp:
+        with tempfile.NamedTemporaryFile("wb", delete=False, dir=current_path.parent, prefix="patchpilot-agent-", suffix=".new") as tmp:
             tmp.write(data)
             tmp_path = Path(tmp.name)
 

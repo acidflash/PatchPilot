@@ -17,8 +17,9 @@ services:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-patchpilot}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-patchpilot}
       APP_SECRET: ${APP_SECRET:-change-me-long-random}
       PUBLIC_AGENT_URL: ${PUBLIC_AGENT_URL:-https://patch.labnat.xyz}
-      AGENT_PUBLIC_HOSTNAME: patch.labnat.xyz
-      ADMIN_INTERNAL_HOSTNAMES: patch.labnat.lan,192.168.1.50,localhost,127.0.0.1
+      AGENT_PUBLIC_HOSTNAME: ${AGENT_PUBLIC_HOSTNAME:-patch.labnat.xyz}
+      ADMIN_INTERNAL_HOSTNAMES: ${ADMIN_INTERNAL_HOSTNAMES:-patch.labnat.lan,localhost,127.0.0.1}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       PATCHPILOT_AUTO_AGENT_UPDATE: ${PATCHPILOT_AUTO_AGENT_UPDATE:-false}
       PATCHPILOT_AUTO_APPROVE_AGENTS: ${PATCHPILOT_AUTO_APPROVE_AGENTS:-false}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}

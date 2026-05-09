@@ -1,0 +1,927 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# PatchPilot Enterprise UI upgrade
+# Run from inside existing patchpilot project directory:
+#   cd patchpilot
+#   bash patchpilot-enterprise-ui.sh
+#   docker compose up -d --build
+
+if [[ ! -f "backend/app/templates/admin.html" ]]; then
+  echo "ERROR: Missing backend/app/templates/admin.html"
+  echo "Run this from inside the patchpilot project directory."
+  exit 1
+fi
+
+TS="$(date +%Y%m%d-%H%M%S)"
+BACKUP_DIR="_backup_enterprise_ui_${TS}"
+
+echo "[+] Creating backup: ${BACKUP_DIR}"
+mkdir -p "${BACKUP_DIR}"
+cp -a backend/app/templates "${BACKUP_DIR}/templates"
+
+echo "[+] Installing enterprise admin UI"
+
+cat > backend/app/templates/admin.html <<'HTMLEOF'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PatchPilot Enterprise</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    :root {
+      --bg: #070b12;
+      --panel: #0d1420;
+      --panel-2: #111a2a;
+      --panel-3: #162235;
+      --border: #243247;
+      --border-soft: #1c293b;
+      --text: #e6edf7;
+      --muted: #91a0b8;
+      --muted-2: #67758c;
+      --blue: #4f8cff;
+      --blue-soft: rgba(79, 140, 255, .14);
+      --green: #46d27d;
+      --green-soft: rgba(70, 210, 125, .14);
+      --yellow: #f2c94c;
+      --yellow-soft: rgba(242, 201, 76, .14);
+      --red: #ff5c6c;
+      --red-soft: rgba(255, 92, 108, .14);
+      --purple: #a78bfa;
+      --purple-soft: rgba(167, 139, 250, .14);
+      --shadow: 0 18px 45px rgba(0, 0, 0, .38);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(79, 140, 255, .16), transparent 32rem),
+        radial-gradient(circle at top right, rgba(167, 139, 250, .12), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      background: rgba(10, 16, 27, .86);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--border-soft);
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      box-shadow: 0 12px 30px rgba(79, 140, 255, .28);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      color: white;
+      letter-spacing: -1px;
+    }
+
+    .brand-title {
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -.02em;
+    }
+
+    .brand-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav a {
+      color: var(--muted);
+      padding: 11px 12px;
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid transparent;
+    }
+
+    .nav a:hover {
+      color: var(--text);
+      background: var(--panel-2);
+      border-color: var(--border-soft);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      border-top: 1px solid var(--border-soft);
+      padding-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .main {
+      padding: 28px;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .headline h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: -.04em;
+      line-height: 1.1;
+    }
+
+    .headline p {
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--border-soft);
+      color: var(--muted);
+      background: rgba(255,255,255,.03);
+      white-space: nowrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    .badge.ok { color: var(--green); background: var(--green-soft); border: 1px solid rgba(70,210,125,.24); }
+    .badge.warn { color: var(--yellow); background: var(--yellow-soft); border: 1px solid rgba(242,201,76,.24); }
+    .badge.bad { color: var(--red); background: var(--red-soft); border: 1px solid rgba(255,92,108,.24); }
+    .badge.info { color: var(--blue); background: var(--blue-soft); border: 1px solid rgba(79,140,255,.24); }
+    .badge.disabled { color: var(--muted); background: rgba(145,160,184,.12); border: 1px solid rgba(145,160,184,.2); }
+    .badge.purple { color: var(--purple); background: var(--purple-soft); border: 1px solid rgba(167,139,250,.24); }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.015)), var(--panel);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: auto -40px -50px auto;
+      width: 120px;
+      height: 120px;
+      background: radial-gradient(circle, rgba(79, 140, 255, .12), transparent 70%);
+      pointer-events: none;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 10px;
+    }
+
+    .metric {
+      font-size: 32px;
+      line-height: 1;
+      font-weight: 850;
+      letter-spacing: -.05em;
+    }
+
+    .metric-sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .section {
+      background: rgba(13, 20, 32, .88);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 22px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.035), transparent);
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: -.02em;
+    }
+
+    .section-desc {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 900px;
+    }
+
+    th {
+      color: var(--muted);
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 800;
+      background: rgba(255,255,255,.02);
+      border-bottom: 1px solid var(--border-soft);
+      padding: 12px 14px;
+      white-space: nowrap;
+    }
+
+    td {
+      border-bottom: 1px solid rgba(36, 50, 71, .66);
+      padding: 13px 14px;
+      vertical-align: top;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    tr:hover td { background: rgba(255,255,255,.018); }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .tiny { font-size: 11px; }
+    .danger-text { color: var(--red); }
+    .ok-text { color: var(--green); }
+    .warn-text { color: var(--yellow); }
+
+    .row-title {
+      font-weight: 800;
+      margin-bottom: 3px;
+    }
+
+    .row-sub {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 280px;
+    }
+
+    form.inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin: 0;
+    }
+
+    input, select {
+      background: #0b111c;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 10px;
+      outline: none;
+      max-width: 100%;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(79,140,255,.8);
+      box-shadow: 0 0 0 3px rgba(79,140,255,.16);
+    }
+
+    button {
+      background: var(--panel-3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 11px;
+      cursor: pointer;
+      font-weight: 750;
+      transition: .15s ease;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(79,140,255,.55);
+      background: #1b2a42;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #3268e8, #6d5dfc);
+      border-color: rgba(255,255,255,.12);
+      box-shadow: 0 10px 22px rgba(79,140,255,.22);
+    }
+
+    button.danger {
+      background: rgba(127, 29, 29, .88);
+      border-color: rgba(255, 92, 108, .32);
+    }
+
+    button.ghost { background: transparent; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 18px 20px;
+    }
+
+    .form-grid.full { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .form-grid .span { grid-column: 1 / -1; }
+
+    .package-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      max-height: 150px;
+      overflow: auto;
+      font-size: 12px;
+      color: #cbd5e1;
+      background: rgba(0,0,0,.18);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .footer-note {
+      color: var(--muted-2);
+      font-size: 12px;
+      padding: 12px 2px 30px;
+    }
+
+    .mobile-brand { display: none; }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .main { padding: 18px; }
+      .mobile-brand { display: block; margin-bottom: 16px; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .two-col { grid-template-columns: 1fr; }
+      .form-grid.full { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 620px) {
+      .cards { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; }
+      .form-grid, .form-grid.full { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  {% set ns = namespace(total=0, online=0, stale=0, offline=0, disabled=0, security=0, reboot=0, pending=0, failed=0, approval=0) %}
+  {% for m in machines %}
+    {% set ns.total = ns.total + 1 %}
+    {% set st = machine_state(m) %}
+    {% if st == 'online' %}{% set ns.online = ns.online + 1 %}{% endif %}
+    {% if st == 'stale' %}{% set ns.stale = ns.stale + 1 %}{% endif %}
+    {% if st == 'offline' %}{% set ns.offline = ns.offline + 1 %}{% endif %}
+    {% if st == 'disabled' %}{% set ns.disabled = ns.disabled + 1 %}{% endif %}
+    {% if m.security_updates_available and m.security_updates_available > 0 %}{% set ns.security = ns.security + 1 %}{% endif %}
+    {% if m.reboot_required %}{% set ns.reboot = ns.reboot + 1 %}{% endif %}
+  {% endfor %}
+  {% for j in jobs %}
+    {% if j.status == 'pending' or j.status == 'running' %}{% set ns.pending = ns.pending + 1 %}{% endif %}
+    {% if j.status == 'failed' %}{% set ns.failed = ns.failed + 1 %}{% endif %}
+    {% if j.status == 'approval_required' %}{% set ns.approval = ns.approval + 1 %}{% endif %}
+  {% endfor %}
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">PP</div>
+        <div>
+          <div class="brand-title">PatchPilot</div>
+          <div class="brand-sub">Enterprise Control Plane</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="#overview">Overview <span class="badge info">{{ ns.total }}</span></a>
+        <a href="#fleet">Fleet <span class="badge ok">{{ ns.online }}</span></a>
+        <a href="#jobs">Jobs <span class="badge warn">{{ ns.pending }}</span></a>
+        <a href="#groups">Groups <span class="badge purple">{{ groups|length }}</span></a>
+        <a href="#schedules">Schedules <span class="badge info">{{ schedules|length }}</span></a>
+        <a href="#packages">Packages <span class="badge bad">{{ ns.security }}</span></a>
+        <a href="#audit">Audit <span class="badge disabled">log</span></a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div><strong>Agent endpoint</strong></div>
+        <div class="mono">patch.labnat.xyz</div>
+        <br>
+        <div><strong>Admin endpoint</strong></div>
+        <div class="mono">internal only</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="mobile-brand">
+        <div class="brand">
+          <div class="brand-mark">PP</div>
+          <div>
+            <div class="brand-title">PatchPilot</div>
+            <div class="brand-sub">Enterprise Control Plane</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar" id="overview">
+        <div class="headline">
+          <h1>Fleet patch management</h1>
+          <p>Ubuntu patching, compliance status, reboot tracking, scheduling and agent lifecycle.</p>
+        </div>
+        <div class="top-actions">
+          <span class="pill">Version {{ version }}</span>
+          <span class="pill">Agents {{ ns.total }}</span>
+          <span class="pill">Online {{ ns.online }}</span>
+          <span class="pill">Security risk {{ ns.security }}</span>
+        </div>
+      </div>
+
+      <section class="cards">
+        <div class="card">
+          <div class="metric-label">Managed agents</div>
+          <div class="metric">{{ ns.total }}</div>
+          <div class="metric-sub">{{ ns.online }} online, {{ ns.stale }} stale, {{ ns.offline }} offline</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Security exposure</div>
+          <div class="metric">{{ ns.security }}</div>
+          <div class="metric-sub">agents with security updates</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Reboot required</div>
+          <div class="metric">{{ ns.reboot }}</div>
+          <div class="metric-sub">agents waiting for restart</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Job queue</div>
+          <div class="metric">{{ ns.pending }}</div>
+          <div class="metric-sub">{{ ns.approval }} approval, {{ ns.failed }} failed</div>
+        </div>
+      </section>
+
+      <section class="section" id="fleet">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Fleet inventory</h2>
+            <p class="section-desc">Agent status, patch exposure and operational actions.</p>
+          </div>
+          <span class="badge info">{{ machines|length }} agents</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <tr>
+              <th>State</th>
+              <th>Asset</th>
+              <th>Platform</th>
+              <th>Exposure</th>
+              <th>Groups</th>
+              <th>Last contact</th>
+              <th>Actions</th>
+            </tr>
+            {% for m in machines %}
+              {% set st = machine_state(m) %}
+              <tr>
+                <td>
+                  {% if st == 'online' %}<span class="badge ok">online</span>{% endif %}
+                  {% if st == 'stale' %}<span class="badge warn">stale</span>{% endif %}
+                  {% if st == 'offline' %}<span class="badge bad">offline</span>{% endif %}
+                  {% if st == 'disabled' %}<span class="badge disabled">disabled</span>{% endif %}
+                  {% if m.reboot_required %}<br><br><span class="badge warn">reboot</span>{% endif %}
+                </td>
+                <td>
+                  <div class="row-title">{{ m.hostname }}</div>
+                  <div class="row-sub mono">{{ m.machine_id }}</div>
+                  {% if not m.active %}<div class="row-sub danger-text">{{ m.disabled_reason }}</div>{% endif %}
+                  {% if m.last_error %}<div class="row-sub danger-text">Last error: {{ m.last_error[:160] }}</div>{% endif %}
+                </td>
+                <td>
+                  <div>{{ m.os_version or "-" }}</div>
+                  <div class="row-sub">Kernel: {{ m.kernel_version or "-" }}</div>
+                  <div class="row-sub">Agent: {{ m.agent_version or "-" }}</div>
+                </td>
+                <td>
+                  <div>Total updates: <strong class="{{ 'warn-text' if m.updates_available else 'ok-text' }}">{{ m.updates_available }}</strong></div>
+                  <div>Security: <strong class="{{ 'danger-text' if m.security_updates_available else 'ok-text' }}">{{ m.security_updates_available }}</strong></div>
+                  <div class="row-sub">Auto patch: {{ "yes" if m.auto_patch else "no" }}, auto reboot: {{ "yes" if m.auto_reboot else "no" }}</div>
+                </td>
+                <td>
+                  <div class="package-grid">
+                    {% for g in groups %}
+                      {% if m.id in group_map and g.id in group_map[m.id] %}
+                        <span class="badge purple">{{ g.name }}</span>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                </td>
+                <td>
+                  <div>{{ m.last_seen or "-" }}</div>
+                  <div class="row-sub">Last success: {{ m.last_success_at or "-" }}</div>
+                </td>
+                <td>
+                  <div class="actions">
+                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/jobs">
+                      <select name="action">
+                        <option value="check_updates">check</option>
+                        <option value="upgrade">upgrade</option>
+                        <option value="security_upgrade">security upgrade</option>
+                        <option value="apt_clean">apt clean</option>
+                        <option value="self_update">update agent</option>
+                        <option value="reboot">reboot</option>
+                      </select>
+                      <label class="small"><input type="checkbox" name="allow_reboot" value="true"> reboot</label>
+                      <button class="primary" type="submit">Queue</button>
+                    </form>
+
+                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/settings">
+                      <label class="small"><input type="checkbox" name="auto_patch" value="true" {% if m.auto_patch %}checked{% endif %}> auto patch</label>
+                      <label class="small"><input type="checkbox" name="auto_reboot" value="true" {% if m.auto_reboot %}checked{% endif %}> auto reboot</label>
+                      <button type="submit">Save</button>
+                    </form>
+
+                    {% if m.active %}
+                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/disable">
+                        <input name="reason" value="disabled by admin">
+                        <button type="submit">Disable</button>
+                      </form>
+                    {% else %}
+                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/enable">
+                        <button type="submit">Enable</button>
+                      </form>
+                    {% endif %}
+
+                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete-jobs" onsubmit="return confirm('Delete all jobs for {{ m.hostname }}?');">
+                      <button class="ghost" type="submit">Clear jobs</button>
+                    </form>
+
+                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete" onsubmit="return confirm('Delete agent {{ m.hostname }} and all its data?');">
+                      <button class="danger" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="jobs">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Job operations</h2>
+            <p class="section-desc">Patch jobs, approval queue, execution output and failures.</p>
+          </div>
+          <span class="badge warn">{{ jobs|length }} latest</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <tr>
+              <th>ID</th>
+              <th>Machine</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Timing</th>
+              <th>Output</th>
+              <th>Action</th>
+            </tr>
+            {% for j in jobs %}
+              <tr>
+                <td class="mono">#{{ j.id }}</td>
+                <td>
+                  <div class="row-title">{{ j.machine.hostname if j.machine else "-" }}</div>
+                  <div class="row-sub">{{ j.created_by or "" }}</div>
+                </td>
+                <td><span class="badge info">{{ j.action }}</span></td>
+                <td>
+                  {% if j.status == 'success' %}<span class="badge ok">success</span>{% endif %}
+                  {% if j.status == 'failed' %}<span class="badge bad">failed</span>{% endif %}
+                  {% if j.status == 'pending' %}<span class="badge warn">pending</span>{% endif %}
+                  {% if j.status == 'running' %}<span class="badge info">running</span>{% endif %}
+                  {% if j.status == 'approval_required' %}<span class="badge purple">approval</span>{% endif %}
+                  <div class="row-sub">Exit: {{ j.exit_code if j.exit_code is not none else "-" }}</div>
+                </td>
+                <td>
+                  <div>Created: {{ j.created_at }}</div>
+                  <div class="row-sub">Started: {{ j.started_at or "-" }}</div>
+                  <div class="row-sub">Finished: {{ j.finished_at or "-" }}</div>
+                </td>
+                <td><pre>{{ j.output or "" }}</pre></td>
+                <td>
+                  <div class="actions">
+                    {% if j.status == 'approval_required' %}
+                      <form method="post" action="/admin/jobs/{{ j.id }}/approve">
+                        <button class="primary" type="submit">Approve</button>
+                      </form>
+                    {% endif %}
+                    <form method="post" action="/admin/jobs/{{ j.id }}/delete" onsubmit="return confirm('Delete job {{ j.id }}?');">
+                      <button class="danger" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </section>
+
+      <div class="two-col">
+        <section class="section" id="groups">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Groups</h2>
+              <p class="section-desc">Group machines for scheduling and policy operations.</p>
+            </div>
+          </div>
+
+          <form class="form-grid" method="post" action="/admin/groups">
+            <input name="name" placeholder="group name" required>
+            <input name="description" placeholder="description">
+            <button class="primary span" type="submit">Create group</button>
+          </form>
+
+          <form class="form-grid" method="post" action="/admin/groups/assign">
+            <select name="machine_id">
+              {% for m in machines %}<option value="{{ m.id }}">{{ m.hostname }}</option>{% endfor %}
+            </select>
+            <select name="group_id">
+              {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+            </select>
+            <button class="primary span" type="submit">Assign machine to group</button>
+          </form>
+
+          <form class="form-grid" method="post" action="/admin/groups/unassign">
+            <select name="machine_id">
+              {% for m in machines %}<option value="{{ m.id }}">{{ m.hostname }}</option>{% endfor %}
+            </select>
+            <select name="group_id">
+              {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+            </select>
+            <button class="span" type="submit">Remove from group</button>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <tr><th>ID</th><th>Name</th><th>Description</th><th>Action</th></tr>
+              {% for g in groups %}
+                <tr>
+                  <td class="mono">{{ g.id }}</td>
+                  <td><span class="badge purple">{{ g.name }}</span></td>
+                  <td>{{ g.description or "" }}</td>
+                  <td>
+                    <form method="post" action="/admin/groups/{{ g.id }}/delete" onsubmit="return confirm('Delete group {{ g.name }}?');">
+                      <button class="danger" type="submit">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="schedules">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Schedules</h2>
+              <p class="section-desc">Create recurring patch windows for machines or groups.</p>
+            </div>
+          </div>
+
+          <form class="form-grid full" method="post" action="/admin/schedules">
+            <input name="name" placeholder="schedule name" required>
+            <select name="target_type">
+              <option value="machine">machine</option>
+              <option value="group">group</option>
+            </select>
+            <input name="target_id" placeholder="target id" required>
+            <select name="action">
+              <option value="check_updates">check</option>
+              <option value="upgrade">upgrade</option>
+              <option value="security_upgrade">security upgrade</option>
+              <option value="apt_clean">apt clean</option>
+              <option value="self_update">update agent</option>
+              <option value="reboot">reboot</option>
+            </select>
+            <select name="day_of_week">
+              <option value="all">daily</option>
+              <option value="mon">monday</option>
+              <option value="tue">tuesday</option>
+              <option value="wed">wednesday</option>
+              <option value="thu">thursday</option>
+              <option value="fri">friday</option>
+              <option value="sat">saturday</option>
+              <option value="sun">sunday</option>
+            </select>
+            <input name="time_of_day" value="03:00">
+            <input name="timezone" value="Europe/Stockholm">
+            <div>
+              <label class="small"><input type="checkbox" name="allow_reboot" value="true"> reboot</label><br>
+              <label class="small"><input type="checkbox" name="require_approval" value="true"> approval</label><br>
+              <label class="small"><input type="checkbox" name="enabled" value="true" checked> enabled</label>
+            </div>
+            <button class="primary span" type="submit">Create schedule</button>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <tr><th>ID</th><th>Name</th><th>Target</th><th>Action</th><th>Window</th><th>Flags</th><th>Action</th></tr>
+              {% for s in schedules %}
+                <tr>
+                  <td class="mono">{{ s.id }}</td>
+                  <td>{{ s.name }}</td>
+                  <td>{{ s.target_type }}:{{ s.target_id }}</td>
+                  <td><span class="badge info">{{ s.action }}</span></td>
+                  <td>{{ s.day_of_week }} {{ s.time_of_day }}<br><span class="row-sub">{{ s.timezone }}</span></td>
+                  <td>
+                    {% if s.enabled %}<span class="badge ok">enabled</span>{% else %}<span class="badge disabled">disabled</span>{% endif %}
+                    {% if s.allow_reboot %}<span class="badge warn">reboot</span>{% endif %}
+                    {% if s.require_approval %}<span class="badge purple">approval</span>{% endif %}
+                    <div class="row-sub">Last run: {{ s.last_run_at or "-" }}</div>
+                  </td>
+                  <td>
+                    <form method="post" action="/admin/schedules/{{ s.id }}/delete" onsubmit="return confirm('Delete schedule {{ s.name }}?');">
+                      <button class="danger" type="submit">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <section class="section" id="packages">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Package exposure</h2>
+            <p class="section-desc">Latest reported package updates from agents.</p>
+          </div>
+          <span class="badge bad">security tracked</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <tr><th>Machine</th><th>Package</th><th>Current</th><th>Candidate</th><th>Risk</th></tr>
+            {% for p in packages %}
+              <tr>
+                <td>{{ p.machine.hostname if p.machine else "-" }}</td>
+                <td class="mono">{{ p.package }}</td>
+                <td class="mono">{{ p.current_version or "-" }}</td>
+                <td class="mono">{{ p.candidate_version or "-" }}</td>
+                <td>{% if p.security %}<span class="badge bad">security</span>{% else %}<span class="badge disabled">standard</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="audit">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Audit log</h2>
+            <p class="section-desc">Administrative and agent security events.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
+            {% for a in audits %}
+              <tr>
+                <td>{{ a.created_at }}</td>
+                <td><span class="badge info">{{ a.actor }}</span></td>
+                <td>{{ a.action }}</td>
+                <td>{{ a.target_type or "" }} {{ a.target_id or "" }}</td>
+                <td>{{ a.details or "" }}</td>
+              </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </section>
+
+      <div class="footer-note">
+        PatchPilot Enterprise UI. Admin should remain internal only. Public hostname should expose agent endpoints only.
+      </div>
+    </main>
+  </div>
+</body>
+</html>
+HTMLEOF
+
+echo
+echo "[+] Enterprise UI installed."
+echo "Backup saved in: ${BACKUP_DIR}"
+echo
+echo "Rebuild:"
+echo "  docker compose up -d --build"

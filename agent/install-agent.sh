@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SERVER_URL=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      SERVER_URL="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$SERVER_URL" ]]; then
+  echo "Usage: sudo ./install-agent.sh --server https://patch.axnet.ax"
+  exit 1
+fi
+
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Run as root"
+  exit 1
+fi
+
+apt-get update
+apt-get install -y python3 ca-certificates unattended-upgrades
+
+install -d -m 700 /etc/patchpilot
+install -m 755 ./patchpilot-agent.py /usr/local/bin/patchpilot-agent
+
+/usr/local/bin/patchpilot-agent --enroll --server "$SERVER_URL"
+
+cat > /etc/systemd/system/patchpilot-agent.service <<'UNIT'
+[Unit]
+Description=PatchPilot Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/patchpilot-agent --once
+UNIT
+
+cat > /etc/systemd/system/patchpilot-agent.timer <<'UNIT'
+[Unit]
+Description=Run PatchPilot Agent every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=patchpilot-agent.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now patchpilot-agent.timer
+
+echo "PatchPilot agent installed and enrolled."

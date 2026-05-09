@@ -1,0 +1,9 @@
+{
+    email admin@labnat.lan
+    acme_ca https://pki.labnat.lan/directory
+    acme_ca_root /etc/caddy/certs/root-01-cert.pem
+}
+
+patch.labnat.lan {
+    reverse_proxy backend:8080
+}

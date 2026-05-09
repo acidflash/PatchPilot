@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>PatchPilot Enterprise</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
 
   <style>
     :root {
@@ -631,7 +632,7 @@
                       <form class="inline" method="post" action="/admin/machines/{{ m.id }}/approve">
                         <button class="primary" type="submit">Approve agent</button>
                       </form>
-                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/reject" onsubmit="return confirm('Reject agent {{ m.hostname }}?');">
+                      <form class="inline" method="post" action="/admin/machines/{{ m.id }}/reject" data-confirm="Reject this agent?">
                         <button class="danger" type="submit">Reject</button>
                       </form>
                     {% endif %}
@@ -647,11 +648,11 @@
                       </form>
                     {% endif %}
 
-                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete-jobs" onsubmit="return confirm('Delete all jobs for {{ m.hostname }}?');">
+                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete-jobs" data-confirm="Delete all jobs for this machine?">
                       <button class="ghost" type="submit">Clear jobs</button>
                     </form>
 
-                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete" onsubmit="return confirm('Delete agent {{ m.hostname }} and all its data?');">
+                    <form class="inline" method="post" action="/admin/machines/{{ m.id }}/delete" data-confirm="Delete this agent and all its data?">
                       <button class="danger" type="submit">Delete</button>
                     </form>
                   </div>
@@ -711,7 +712,7 @@
                         <button class="primary" type="submit">Approve</button>
                       </form>
                     {% endif %}
-                    <form method="post" action="/admin/jobs/{{ j.id }}/delete" onsubmit="return confirm('Delete job {{ j.id }}?');">
+                    <form method="post" action="/admin/jobs/{{ j.id }}/delete" data-confirm="Delete this job?">
                       <button class="danger" type="submit">Delete</button>
                     </form>
                   </div>
@@ -766,7 +767,7 @@
                   <td><span class="badge purple">{{ g.name }}</span></td>
                   <td>{{ g.description or "" }}</td>
                   <td>
-                    <form method="post" action="/admin/groups/{{ g.id }}/delete" onsubmit="return confirm('Delete group {{ g.name }}?');">
+                    <form method="post" action="/admin/groups/{{ g.id }}/delete" data-confirm="Delete this group?">
                       <button class="danger" type="submit">Delete</button>
                     </form>
                   </td>
@@ -859,7 +860,7 @@
                     <div class="row-sub">Last run: {{ s.last_run_at or "-" }}</div>
                   </td>
                   <td>
-                    <form method="post" action="/admin/schedules/{{ s.id }}/delete" onsubmit="return confirm('Delete schedule {{ s.name }}?');">
+                    <form method="post" action="/admin/schedules/{{ s.id }}/delete" data-confirm="Delete this schedule?">
                       <button class="danger" type="submit">Delete</button>
                     </form>
                   </td>
@@ -952,6 +953,26 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    // Inject CSRF token into all POST forms
+    const csrfMeta = document.querySelector("meta[name='csrf-token']");
+    if (csrfMeta) {
+      document.querySelectorAll("form[method='post']").forEach(function (form) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "csrf_token";
+        input.value = csrfMeta.content;
+        form.appendChild(input);
+      });
+    }
+
+    // Safe confirm dialogs via data-confirm (avoids XSS in inline JS)
+    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+      form.addEventListener("submit", function (e) {
+        if (!confirm(this.dataset.confirm)) e.preventDefault();
+      });
+    });
+
+    // Schedule target dropdown sync
     const targetType = document.getElementById("schedule-target-type");
     const machineSelect = document.getElementById("schedule-machine-target");
     const groupSelect = document.getElementById("schedule-group-target");

@@ -9,13 +9,14 @@ Detaljerad genomgång av hur varje funktion fungerar och vad som används under 
 1. [Systemarkitektur](#systemarkitektur)
 2. [Datamodell](#datamodell)
 3. [Agentfunktioner](#agentfunktioner)
-4. [Server — autentisering och säkerhet](#server--autentisering-och-säkerhet)
-5. [Server — agent-API](#server--agent-api)
-6. [Server — admin-API](#server--admin-api)
-7. [Schemaläggaren](#schemaläggaren)
-8. [Notifieringar](#notifieringar)
-9. [Installationsskript](#installationsskript)
-10. [Testsvit](#testsvit)
+4. [Exakt vad som sker på Ubuntu-maskinen när ett jobb körs](#exakt-vad-som-sker-på-ubuntu-maskinen-när-ett-jobb-körs)
+5. [Server — autentisering och säkerhet](#server--autentisering-och-säkerhet)
+6. [Server — agent-API](#server--agent-api)
+7. [Server — admin-API](#server--admin-api)
+8. [Schemaläggaren](#schemaläggaren)
+9. [Notifieringar](#notifieringar)
+10. [Installationsskript](#installationsskript)
+11. [Testsvit](#testsvit)
 
 ---
 
@@ -147,6 +148,176 @@ Huvudflödet vid varje körning:
 7. Markera varje jobb som startat, kör det, rapportera resultatet
 
 Vid undantag skickas felmeddelandet med vid nästa incheckning som `last_error`.
+
+---
+
+## Exakt vad som sker på Ubuntu-maskinen när ett jobb körs
+
+### Flöde från timer-tick till jobbresultat
+
+```
+systemd-timer (var 5:e minut)
+  │
+  └─► patchpilot-agent --once
+        │
+        ├─ 1. collect_status()          ← apt-get update + apt list
+        ├─ 2. POST /api/v1/agent/checkin  ← skickar status, tar emot jobb
+        ├─ 3. POST /jobs/{id}/started   ← berättar att jobbet börjar
+        ├─ 4. execute_job()             ← kör rätt Linux-kommando
+        └─ 5. POST /jobs/{id}/result    ← skickar exit-kod + output
+```
+
+### Steg 1 — collect_status(): vad APT-kommandona gör
+
+Varje incheckning börjar med att agenten samlar systemstatus. Tre systemanrop körs i sekvens:
+
+**`apt-get update`**
+Synkroniserar paketlistorna mot Ubuntu:s repon (eller lokalt mirror). Skriver till `/var/lib/apt/lists/`. Kräver root. Timeout: 15 minuter.
+
+```bash
+apt-get update
+```
+
+**`apt list --upgradable 2>/dev/null | tail -n +2`**
+Listar alla paket med tillgängliga uppgraderingar. `tail -n +2` tar bort rubrikraden ("Listing..."). Output-formatet är:
+
+```
+vim/jammy 9.1.0-1ubuntu1 amd64 [upgradable from: 9.0.0-1]
+openssl/jammy-security 3.0.2-0ubuntu1.12 amd64 [upgradable from: 3.0.2-0ubuntu1.10]
+```
+
+Agenten parsar varje rad med regex och märker ett paket som CVE-relaterat om källnamnet innehåller `security` (t.ex. `jammy-security`).
+
+**`/usr/lib/update-notifier/apt-check`** *(om filen finns)*
+Ubuntu-verktyg som ger exaktare räkning av totala och säkerhetsrelaterade uppdateringar. Finns på de flesta Ubuntu-installationer. Output-format: `42;5` (42 totalt, 5 säkerhetsrelaterade).
+
+**Kontroll av `/var/run/reboot-required`**
+APT skapar den här filen automatiskt när ett installerat paket kräver omstart för att aktiveras (t.ex. ny kernel, nytt glibc). Agenten rapporterar `"reboot_required": true` om filen existerar.
+
+**Läser `/etc/os-release`**
+Standardfil på alla moderna Linux-distributioner. Agenten läser `PRETTY_NAME`-raden, t.ex. `Ubuntu 22.04.3 LTS`.
+
+**`platform.release()`**
+Python-stdlib-anrop som kör `uname -r` internt och returnerar kernelversionen, t.ex. `5.15.0-91-generic`.
+
+---
+
+### Steg 4 — execute_job(): Linux-kommandon per jobbtyp
+
+#### `check_updates`
+
+Kör hela `collect_status()` igen (uppdaterar paketlistorna och räknar om). Returnerar all status som JSON. Inget installeras, inget ändras på systemet.
+
+```bash
+apt-get update
+apt list --upgradable 2>/dev/null
+/usr/lib/update-notifier/apt-check   # om det finns
+```
+
+---
+
+#### `upgrade`
+
+```bash
+apt-get update && apt-get upgrade -y
+```
+
+- `apt-get upgrade -y` uppgraderar alla paket som har en nyare version tillgänglig, **utan** att ta bort befintliga paket eller installera nya (för det krävs `dist-upgrade`/`full-upgrade`).
+- `-y` svarar automatiskt ja på alla frågor.
+- `DEBIAN_FRONTEND=noninteractive` sätts i miljön — förhindrar interaktiva dialoger (t.ex. om `/etc/ssh/sshd_config` ska skrivas över av ett paketuppdatering).
+- `NEEDRESTART_MODE=a` sätts i miljön — gör att `needrestart` (ett Ubuntu-verktyg som frågar om tjänster ska startas om) kör automatiskt utan att fråga.
+- Om `allow_reboot=true` och `/var/run/reboot-required` finns efter uppgraderingen körs `systemctl reboot`.
+
+Timeout: 2 timmar.
+
+---
+
+#### `security_upgrade`
+
+```bash
+apt-get update && unattended-upgrade -d
+```
+
+- `unattended-upgrade` är Ubuntu:s inbyggda verktyg för automatiska säkerhetsuppdateringar. Det läser `/etc/apt/apt.conf.d/50unattended-upgrades` för att avgöra vilka paket som är godkända.
+- Som standard uppgraderar det enbart paket från `Ubuntu:jammy-security` och `UbuntuESM:jammy-infra-security`.
+- `-d` (debug) skriver detaljerad output som agenten fångar och rapporterar tillbaka.
+- Uppgraderar **inte** icke-säkerhetspaket — t.ex. får vim en ny version via `upgrade` men inte via `security_upgrade` om det inte är en CVE-fix.
+- Om `allow_reboot=true` och omstart krävs körs `systemctl reboot`.
+
+Timeout: 2 timmar.
+
+---
+
+#### `apt_clean`
+
+```bash
+apt-get autoremove -y && apt-get autoclean -y
+```
+
+- `autoremove` tar bort paket som installerades automatiskt som beroenden men inte längre behövs av något installerat paket.
+- `autoclean` tar bort paketfiler (`.deb`) från APT:s lokala cache (`/var/cache/apt/archives/`) för paket som inte längre finns i repona eller har ersatts av nyare versioner. Rör inte den fungerande installationen.
+
+---
+
+#### `reboot`
+
+```bash
+systemctl reboot
+```
+
+- Körs enbart om `allow_reboot=true` i jobbet — annars returneras exit code 1 med meddelandet `"Reboot refused because allow_reboot is false"`.
+- `systemctl reboot` begär omstart av init-systemet (systemd). Det är en kontrollerad omstart — `systemd` stänger ner tjänster i rätt ordning.
+- Agenten hinner inte rapportera något meningsfullt resultat efter att omstarten startat. Servern markerar jobbet som `success` ändå om exit-koden är 0 från `systemctl reboot`-anropet (vilket den är innan maskinen stänger ned).
+
+---
+
+#### `self_update`
+
+Se [self_update_agent()](#self_update_agent) i Agentfunktioner-sektionen för full genomgång. I korthet:
+
+```
+1. curl-ekvivalent mot /agent/patchpilot-agent.py   (urllib, inga externa deps)
+2. SHA256-verifiering mot serverns manifest
+3. Skriv tempfil i /usr/local/bin/   (samma filsystem som målet)
+4. chmod 755 tempfil
+5. Backup: /usr/local/bin/patchpilot-agent.bak-{version}
+6. rename(tempfil → /usr/local/bin/patchpilot-agent)   ← atomisk
+```
+
+Linux-systemanropen som faktiskt körs:
+- `open()` + `write()` — skriver tempfilen
+- `chmod()` — sätter exekveringsrättigheter
+- `rename()` — atomisk filbytning (en enda systemcall, aldrig partiell)
+
+---
+
+### Miljövariabler som sätts för alla APT-kommandon
+
+| Variabel | Värde | Varför |
+|---|---|---|
+| `DEBIAN_FRONTEND` | `noninteractive` | Förhindrar att APT öppnar interaktiva dialoger (debconf) |
+| `NEEDRESTART_MODE` | `a` | Gör att `needrestart` automatiskt startar om tjänster utan att fråga |
+
+Utan `DEBIAN_FRONTEND=noninteractive` kan t.ex. en uppgradering av `openssh-server` fastna och vänta på svar om konfigurationsfilen ska behållas eller skrivas över — för alltid, tills timeout.
+
+---
+
+### Säkerhetsgräns: vad agenten INTE kan göra
+
+Agenten validerar alltid `action` mot:
+
+```python
+ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot",
+                   "security_upgrade", "self_update", "upgrade"}
+```
+
+Om servern (eller någon annan) skickar ett jobb med `action = "rm -rf /"` eller vilket annat kommando som helst som inte finns i listan returneras omedelbart:
+
+```
+exit_code=1, output="Refused invalid action: rm -rf /"
+```
+
+Kommandot körs aldrig. Det finns ingen eval, ingen exec av serversvar, inga dynamiska kommandon.
 
 ---
 

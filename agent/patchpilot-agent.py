@@ -195,6 +195,8 @@ def bootstrap_if_needed():
     return load_json(CONFIG_PATH)
 
 def self_update_agent(update_url, expected_sha256=None):
+    import hashlib as _hashlib
+    import shutil
     if not update_url:
         return 1, "Missing agent update URL"
 
@@ -217,7 +219,7 @@ def self_update_agent(update_url, expected_sha256=None):
         if not data.startswith(b"#!/usr/bin/env python3"):
             return 1, "Downloaded file does not look like PatchPilot agent"
 
-        got_sha256 = hashlib.sha256(data).hexdigest()
+        got_sha256 = _hashlib.sha256(data).hexdigest()
         if expected_sha256 and expected_sha256 != got_sha256:
             return 1, f"SHA256 mismatch. expected={expected_sha256} got={got_sha256}"
 
@@ -234,7 +236,12 @@ def self_update_agent(update_url, expected_sha256=None):
         except Exception:
             pass
 
-        tmp_path.replace(current_path)
+        try:
+            tmp_path.replace(current_path)
+        except OSError:
+            # Atomic rename fails across filesystems — fall back to copy+delete
+            shutil.copy2(str(tmp_path), str(current_path))
+            tmp_path.unlink(missing_ok=True)
         os.chmod(current_path, 0o755)
 
         return 0, f"Agent updated successfully. old_version={AGENT_VERSION} sha256={got_sha256}"

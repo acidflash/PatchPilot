@@ -303,6 +303,7 @@ def admin(request: Request, db: Session = Depends(get_db)):
         "group_map": group_map,
         "machine_state": machine_state,
         "csrf_token": make_csrf_token(),
+        "agent_public_url": os.getenv("PUBLIC_AGENT_URL", str(request.base_url).rstrip("/")),
     })
 
 

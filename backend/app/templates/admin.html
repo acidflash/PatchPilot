@@ -659,6 +659,104 @@
       background: var(--border-soft);
     }
 
+    /* ── Install modal ────────────────────────────────────────── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      width: min(520px, calc(100vw - 32px));
+      box-shadow: var(--shadow);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-3);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+    }
+    .modal-close:hover { color: var(--text); background: var(--surface-3); }
+
+    .modal-step {
+      font-size: 12px;
+      color: var(--text-2);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .install-cmd {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--green);
+      word-break: break-all;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+
+    .modal-note {
+      font-size: 11.5px;
+      color: var(--text-3);
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(79,140,255,.35);
+      background: var(--blue-dim);
+      color: var(--blue);
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .copy-btn:hover { background: rgba(79,140,255,.2); border-color: rgba(79,140,255,.55); }
+    .copy-btn.copied { background: var(--green-dim); border-color: rgba(52,211,153,.35); color: var(--green); }
+
     /* ── Mobile brand ─────────────────────────────────────────── */
     .mobile-brand { display: none; }
 
@@ -934,6 +1032,12 @@
                 <span class="badge purple">{{ ns.pending_approval }} pending approval</span>
               {% endif %}
               <span class="badge info">{{ machines|length }} agents</span>
+              <button type="button" class="btn btn-primary" onclick="document.getElementById('install-modal').classList.add('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add agent
+              </button>
             </div>
           </div>
 
@@ -1487,6 +1591,20 @@
     });
   }
 
+  // ── Install modal copy button ───────────────────────────────────
+  function copyInstallCmd() {
+    var text = document.getElementById('install-cmd-text').textContent.trim();
+    var btn  = document.getElementById('copy-install-btn');
+    navigator.clipboard.writeText(text).then(function () {
+      btn.classList.add('copied');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy command';
+      }, 2000);
+    });
+  }
+
   // ── Safe confirm dialogs ────────────────────────────────────────
   document.querySelectorAll("form[data-confirm]").forEach(function (form) {
     form.addEventListener("submit", function (e) {
@@ -1551,6 +1669,40 @@
   }
 }());
 </script>
+
+{# ── Install agent modal ─────────────────────────────────────────────── #}
+<div class="modal-backdrop" id="install-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--blue)">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        Install PatchPilot agent
+      </div>
+      <button class="modal-close" onclick="document.getElementById('install-modal').classList.remove('open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-step">Run as root on the target server:</div>
+    <div class="install-cmd" id="install-cmd-text">curl -fsSL {{ agent_public_url }}/install.sh | bash</div>
+    <button class="copy-btn" id="copy-install-btn" onclick="copyInstallCmd()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px">
+        <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      Copy command
+    </button>
+
+    <div class="modal-note">
+      <span>The agent installs, enrolls and starts checking in every 5&nbsp;minutes.</span>
+      <span>New agents require admin approval unless auto-approve is enabled.</span>
+      <span>For VM templates, use <code style="font-family:monospace;color:var(--text-2)">/template-install.sh</code> instead.</span>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

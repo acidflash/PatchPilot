@@ -138,6 +138,109 @@ class TestCheckin:
         )
         assert resp.status_code == 200
 
+    def test_auto_patch_creates_job_when_updates_available(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, token, machine_id = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.auto_patch = True
+        machine.auto_reboot = False
+        db.commit()
+        db.close()
+
+        resp = client.post(
+            "/api/v1/agent/checkin",
+            json={"hostname": "testhost", "updates_available": 5, "security_updates_available": 1},
+            headers=agent_headers(token, machine_id),
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert any(j["action"] == "upgrade" for j in data["jobs"])
+
+        db = _Session()
+        job = db.query(Job).filter(Job.machine_id == db_id, Job.created_by == "auto_patch").first()
+        assert job is not None
+        assert job.allow_reboot is False
+        db.close()
+
+    def test_auto_patch_respects_auto_reboot(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, token, machine_id = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.auto_patch = True
+        machine.auto_reboot = True
+        db.commit()
+        db.close()
+
+        client.post(
+            "/api/v1/agent/checkin",
+            json={"hostname": "testhost", "updates_available": 3},
+            headers=agent_headers(token, machine_id),
+        )
+
+        db = _Session()
+        job = db.query(Job).filter(Job.machine_id == db_id, Job.created_by == "auto_patch").first()
+        assert job is not None
+        assert job.allow_reboot is True
+        db.close()
+
+    def test_auto_patch_skipped_when_no_updates(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, token, machine_id = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.auto_patch = True
+        db.commit()
+        db.close()
+
+        client.post(
+            "/api/v1/agent/checkin",
+            json={"hostname": "testhost", "updates_available": 0},
+            headers=agent_headers(token, machine_id),
+        )
+
+        db = _Session()
+        job = db.query(Job).filter(Job.machine_id == db_id, Job.created_by == "auto_patch").first()
+        assert job is None
+        db.close()
+
+    def test_auto_patch_skipped_when_disabled(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, token, machine_id = enrolled
+
+        client.post(
+            "/api/v1/agent/checkin",
+            json={"hostname": "testhost", "updates_available": 10},
+            headers=agent_headers(token, machine_id),
+        )
+
+        db = _Session()
+        job = db.query(Job).filter(Job.machine_id == db_id, Job.created_by == "auto_patch").first()
+        assert job is None
+        db.close()
+
+    def test_auto_patch_no_duplicate_when_job_already_pending(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, token, machine_id = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.auto_patch = True
+        db.add(Job(machine_id=db_id, action="upgrade", status="pending", created_by="manual"))
+        db.commit()
+        db.close()
+
+        client.post(
+            "/api/v1/agent/checkin",
+            json={"hostname": "testhost", "updates_available": 5},
+            headers=agent_headers(token, machine_id),
+        )
+
+        db = _Session()
+        count = db.query(Job).filter(Job.machine_id == db_id).count()
+        assert count == 1  # no second job created
+        db.close()
+
 
 # ---------------------------------------------------------------------------
 # Job lifecycle

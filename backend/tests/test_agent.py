@@ -238,3 +238,104 @@ class TestEnrollReenroll:
                 with pytest.raises(SystemExit) as exc_info:
                     agent.enroll("http://fake-server")
         assert exc_info.value.code == 1
+
+
+# ---------------------------------------------------------------------------
+# Status cache helpers
+# ---------------------------------------------------------------------------
+
+class TestStatusCache:
+    def test_load_returns_none_when_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent, "CACHE_PATH", tmp_path / "status-cache.json")
+        assert agent._load_status_cache() is None
+
+    def test_save_and_load_roundtrip(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent, "CACHE_PATH", tmp_path / "status-cache.json")
+        status = {"updates_available": 5, "packages": []}
+        agent._save_status_cache(status)
+        loaded = agent._load_status_cache()
+        assert loaded["updates_available"] == 5
+        assert "_checked_at" in loaded
+
+    def test_load_returns_none_on_corrupt_file(self, tmp_path, monkeypatch):
+        cache = tmp_path / "status-cache.json"
+        cache.write_text("not valid json{{{")
+        monkeypatch.setattr(agent, "CACHE_PATH", cache)
+        assert agent._load_status_cache() is None
+
+    def test_full_check_triggered_when_no_cache(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent, "CACHE_PATH", tmp_path / "status-cache.json")
+        monkeypatch.setattr(agent, "CONFIG_PATH", tmp_path / "agent.json")
+        (tmp_path / "agent.json").write_text(
+            '{"server_url": "http://fake", "machine_id": "m1", "agent_token": "t1"}'
+        )
+        collect_calls = []
+
+        def fake_collect(last_error=None):
+            collect_calls.append(True)
+            return {"hostname": "h", "updates_available": 3, "security_updates_available": 0,
+                    "reboot_required": False, "packages": [], "os_version": "", "kernel_version": "",
+                    "agent_version": agent.AGENT_VERSION, "last_error": None}
+
+        checkin_resp = {"status": "ok", "approved": True, "jobs": [],
+                        "agent_update": {"outdated": False}, "policy": {}}
+
+        with patch.object(agent, "collect_status", side_effect=fake_collect), \
+             patch.object(agent, "http_json", return_value=checkin_resp):
+            agent.run_once()
+
+        assert len(collect_calls) == 1
+
+    def test_full_check_skipped_when_cache_fresh(self, tmp_path, monkeypatch):
+        import time as real_time
+        monkeypatch.setattr(agent, "CACHE_PATH", tmp_path / "status-cache.json")
+        monkeypatch.setattr(agent, "CONFIG_PATH", tmp_path / "agent.json")
+        (tmp_path / "agent.json").write_text(
+            '{"server_url": "http://fake", "machine_id": "m1", "agent_token": "t1"}'
+        )
+        # Write a fresh cache
+        cache_data = {"hostname": "h", "updates_available": 2, "security_updates_available": 0,
+                      "reboot_required": False, "packages": [], "os_version": "Ubuntu 22.04",
+                      "kernel_version": "5.15", "agent_version": agent.AGENT_VERSION,
+                      "last_error": None, "_checked_at": real_time.time()}
+        (tmp_path / "status-cache.json").write_text(__import__("json").dumps(cache_data))
+
+        collect_calls = []
+
+        def fake_collect(last_error=None):
+            collect_calls.append(True)
+            return cache_data
+
+        checkin_resp = {"status": "ok", "approved": True, "jobs": [],
+                        "agent_update": {"outdated": False}, "policy": {}}
+
+        with patch.object(agent, "collect_status", side_effect=fake_collect), \
+             patch.object(agent, "http_json", return_value=checkin_resp):
+            agent.run_once()
+
+        assert len(collect_calls) == 0  # cache is fresh, no full check
+
+    def test_cache_invalidated_after_successful_patch(self, tmp_path, monkeypatch):
+        import time as real_time
+        cache_file = tmp_path / "status-cache.json"
+        monkeypatch.setattr(agent, "CACHE_PATH", cache_file)
+        monkeypatch.setattr(agent, "CONFIG_PATH", tmp_path / "agent.json")
+        (tmp_path / "agent.json").write_text(
+            '{"server_url": "http://fake", "machine_id": "m1", "agent_token": "t1"}'
+        )
+        cache_data = {"hostname": "h", "updates_available": 3, "security_updates_available": 0,
+                      "reboot_required": False, "packages": [], "os_version": "", "kernel_version": "",
+                      "agent_version": agent.AGENT_VERSION, "last_error": None,
+                      "_checked_at": real_time.time()}
+        cache_file.write_text(__import__("json").dumps(cache_data))
+
+        job_resp = {"id": 1, "action": "upgrade", "allow_reboot": False}
+        checkin_resp = {"status": "ok", "approved": True, "jobs": [job_resp],
+                        "agent_update": {"outdated": False}, "policy": {}}
+
+        with patch.object(agent, "collect_status", side_effect=lambda **kw: cache_data), \
+             patch.object(agent, "http_json", return_value=checkin_resp), \
+             patch.object(agent, "execute_job", return_value=(0, "upgraded")):
+            agent.run_once()
+
+        assert not cache_file.exists()

@@ -21,7 +21,7 @@ from .db import Base, engine, get_db, SessionLocal
 from .models import AuditLog, Group, Job, Machine, MachineGroup, PackageUpdate, Schedule
 from .security import hash_token, make_csrf_token, new_token, verify_csrf_token, verify_token
 
-APP_VERSION = "0.4.5"
+APP_VERSION = "0.5.0"
 ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot", "security_upgrade", "self_update", "upgrade"}
 DAYS = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
@@ -236,6 +236,11 @@ def run_schedules():
                 continue
             created = 0
             for m in targets_for_schedule(db, s):
+                # Only create patch jobs when there are actually updates to apply
+                if s.action == "upgrade" and m.updates_available == 0:
+                    continue
+                if s.action == "security_upgrade" and m.security_updates_available == 0:
+                    continue
                 existing = db.query(Job).filter(Job.machine_id == m.id, Job.status.in_(["pending", "running", "approval_required"])).first()
                 if existing:
                     continue

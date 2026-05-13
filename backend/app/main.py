@@ -640,6 +640,22 @@ def checkin(
             "jobs": [],
         }
 
+    # Auto-patch: create a patch job if enabled and updates are available and no job is already queued
+    if machine.auto_patch and machine.updates_available > 0:
+        busy = db.query(Job).filter(
+            Job.machine_id == machine.id,
+            Job.status.in_(["pending", "running", "approval_required"]),
+        ).first()
+        if not busy:
+            db.add(Job(
+                machine_id=machine.id,
+                action="upgrade",
+                allow_reboot=machine.auto_reboot,
+                status="pending",
+                created_by="auto_patch",
+            ))
+            db.commit()
+
     jobs = (
         db.query(Job)
         .filter(Job.machine_id == machine.id, Job.status == "pending")

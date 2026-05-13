@@ -23,6 +23,9 @@ services:
       PATCHPILOT_AUTO_AGENT_UPDATE: ${PATCHPILOT_AUTO_AGENT_UPDATE:-false}
       PATCHPILOT_AUTO_APPROVE_AGENTS: ${PATCHPILOT_AUTO_APPROVE_AGENTS:-false}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - postgres
     ports:

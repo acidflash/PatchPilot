@@ -9,14 +9,17 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from urllib import request, error
 
-AGENT_VERSION = "0.5.0"
+AGENT_VERSION = "0.6.0"
 CONFIG_PATH = Path("/etc/patchpilot/agent.json")
 BOOTSTRAP_PATH = Path("/etc/patchpilot/bootstrap.json")
+CACHE_PATH = Path("/etc/patchpilot/status-cache.json")
 ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot", "security_upgrade", "self_update", "upgrade"}
+CHECK_INTERVAL = 6 * 3600  # full apt-get update at most every 6 hours (≈4×/day)
 
 def run(cmd, timeout=1800):
     env = os.environ.copy()
@@ -248,6 +251,7 @@ def execute_job(job):
 
     if action == "check_updates":
         status = collect_status()
+        _save_status_cache(status)
         return 0, json.dumps(status, indent=2)
 
     if action == "upgrade":
@@ -276,12 +280,46 @@ def execute_job(job):
 
     return 1, "Unhandled action"
 
+def _load_status_cache():
+    try:
+        if CACHE_PATH.exists():
+            return json.loads(CACHE_PATH.read_text())
+    except Exception:
+        pass
+    return None
+
+
+def _save_status_cache(status):
+    try:
+        data = dict(status)
+        data["_checked_at"] = time.time()
+        CACHE_PATH.write_text(json.dumps(data))
+        os.chmod(CACHE_PATH, 0o600)
+    except Exception:
+        pass
+
+
 def run_once():
     cfg = bootstrap_if_needed()
     server = cfg["server_url"].rstrip("/")
 
+    now = time.time()
+    cached = _load_status_cache()
+    last_checked_at = cached.get("_checked_at", 0) if cached else 0
+    do_full_check = not cached or (now - last_checked_at) >= CHECK_INTERVAL
+
+    status = None
     try:
-        status = collect_status()
+        if do_full_check:
+            status = collect_status()
+            _save_status_cache(status)
+        else:
+            status = {k: v for k, v in cached.items() if not k.startswith("_")}
+            status["hostname"] = socket.gethostname()
+            status["kernel_version"] = platform.release()
+            status["agent_version"] = AGENT_VERSION
+            status["reboot_required"] = Path("/var/run/reboot-required").exists()
+
         resp = http_json("POST", f"{server}/api/v1/agent/checkin", status, auth_headers(cfg))
 
         if resp.get("status") == "pending_approval":
@@ -314,11 +352,19 @@ def run_once():
                 auth_headers(cfg),
             )
 
+            # Invalidate cache after patching so next run re-checks actual update status
+            if exit_code == 0 and job.get("action") in ("upgrade", "security_upgrade"):
+                try:
+                    CACHE_PATH.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
     except Exception as e:
         last_error = str(e)
         try:
-            status = collect_status(last_error=last_error)
-            http_json("POST", f"{server}/api/v1/agent/checkin", status, auth_headers(cfg))
+            fallback = status if status else {"hostname": socket.gethostname(), "agent_version": AGENT_VERSION}
+            fallback["last_error"] = last_error
+            http_json("POST", f"{server}/api/v1/agent/checkin", fallback, auth_headers(cfg))
         except Exception:
             pass
         raise

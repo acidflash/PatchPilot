@@ -1,6 +1,7 @@
 """Integration tests for FastAPI endpoints."""
 import pytest
 from app.security import make_csrf_token
+from app.models import Job, Machine, Schedule
 
 
 # ---------------------------------------------------------------------------
@@ -437,3 +438,118 @@ class TestAgentLatest:
         assert "version" in data
         assert "sha256" in data
         assert "url" in data
+
+
+# ---------------------------------------------------------------------------
+# Schedule job filtering (only create patch jobs when updates exist)
+# ---------------------------------------------------------------------------
+
+class TestRunSchedules:
+    def _make_schedule(self, db, machine, action="upgrade", allow_reboot=False):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("UTC"))
+        s = Schedule(
+            name="test-sched",
+            target_type="machine",
+            target_id=machine.id,
+            action=action,
+            day_of_week="all",
+            time_of_day=now.strftime("%H:%M"),
+            timezone="UTC",
+            allow_reboot=allow_reboot,
+            require_approval=False,
+            enabled=True,
+        )
+        db.add(s)
+        db.commit()
+        return s
+
+    def test_upgrade_skipped_when_no_updates(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, _, _ = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.updates_available = 0
+        db.commit()
+
+        self._make_schedule(db, machine, action="upgrade")
+
+        from app.main import run_schedules
+        run_schedules()
+
+        jobs = db.query(Job).filter(Job.machine_id == db_id).all()
+        db.close()
+        assert len(jobs) == 0
+
+    def test_upgrade_created_when_updates_available(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, _, _ = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.updates_available = 5
+        db.commit()
+
+        self._make_schedule(db, machine, action="upgrade")
+
+        from app.main import run_schedules
+        run_schedules()
+
+        jobs = db.query(Job).filter(Job.machine_id == db_id).all()
+        db.close()
+        assert len(jobs) == 1
+        assert jobs[0].action == "upgrade"
+
+    def test_security_upgrade_skipped_when_no_security_updates(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, _, _ = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.updates_available = 3
+        machine.security_updates_available = 0
+        db.commit()
+
+        self._make_schedule(db, machine, action="security_upgrade")
+
+        from app.main import run_schedules
+        run_schedules()
+
+        jobs = db.query(Job).filter(Job.machine_id == db_id).all()
+        db.close()
+        assert len(jobs) == 0
+
+    def test_security_upgrade_created_when_security_updates_available(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, _, _ = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.security_updates_available = 2
+        db.commit()
+
+        self._make_schedule(db, machine, action="security_upgrade")
+
+        from app.main import run_schedules
+        run_schedules()
+
+        jobs = db.query(Job).filter(Job.machine_id == db_id).all()
+        db.close()
+        assert len(jobs) == 1
+        assert jobs[0].action == "security_upgrade"
+
+    def test_allow_reboot_false_sets_job_allow_reboot_false(self, client, enrolled):
+        from tests.conftest import _Session
+        db_id, _, _ = enrolled
+        db = _Session()
+        machine = db.query(Machine).filter(Machine.id == db_id).first()
+        machine.updates_available = 1
+        db.commit()
+
+        self._make_schedule(db, machine, action="upgrade", allow_reboot=False)
+
+        from app.main import run_schedules
+        run_schedules()
+
+        job = db.query(Job).filter(Job.machine_id == db_id).first()
+        db.close()
+        assert job is not None
+        assert job.allow_reboot is False

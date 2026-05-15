@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-15T00:00:00Z",
+  "title": "Design System: PatchPilot",
+  "extensions": {
+    "colorMeta": {
+      "void-navy":        { "role": "neutral",   "displayName": "Void Navy",         "canonical": "oklch(3% 0.008 250)",  "tonalRamp": ["#020408","#05080f","#090e1a","#0d1525","#162035","#243350","#3a506e","#6080a0"] },
+      "surface":          { "role": "neutral",   "displayName": "Surface",            "canonical": "oklch(8% 0.012 248)",  "tonalRamp": ["#04070e","#0b1120","#101a2e","#16243e","#1e3050","#2d4466","#4a6080","#7898b8"] },
+      "surface-raised":   { "role": "neutral",   "displayName": "Surface Raised",     "canonical": "oklch(11% 0.014 248)", "tonalRamp": ["#060c18","#0f1828","#152440","#1c3158","#263e6a","#364e7c","#526890","#8aaac0"] },
+      "surface-floating": { "role": "neutral",   "displayName": "Surface Floating",   "canonical": "oklch(14% 0.016 248)", "tonalRamp": ["#080e1e","#132035","#1a2e4a","#223c62","#2e4a78","#3e5a8a","#5872a0","#8eacca"] },
+      "border-default":   { "role": "neutral",   "displayName": "Border Default",     "canonical": "oklch(20% 0.020 248)", "tonalRamp": ["#0a1020","#1e2d45","#283d5a","#344e72","#425f88","#5472a0","#7090b8","#a0c0d8"] },
+      "border-subtle":    { "role": "neutral",   "displayName": "Border Subtle",      "canonical": "oklch(16% 0.018 248)", "tonalRamp": ["#080d1c","#172338","#1e2e4a","#283c60","#344a76","#44588c","#6070a0","#90a8c8"] },
+      "text-primary":     { "role": "neutral",   "displayName": "Text Primary",       "canonical": "oklch(88% 0.018 240)", "tonalRamp": ["#2a3448","#3e4e68","#546080","#6878a0","#8898c0","#aac0d8","#c8d8ec","#e2eaf6"] },
+      "text-secondary":   { "role": "neutral",   "displayName": "Text Secondary",     "canonical": "oklch(64% 0.022 240)", "tonalRamp": ["#1c2840","#2e3e5a","#405070","#546488","#6878a0","#8090b0","#94a3b8","#b8c8d8"] },
+      "text-muted":       { "role": "neutral",   "displayName": "Text Muted",         "canonical": "oklch(44% 0.018 240)", "tonalRamp": ["#141c2c","#1e2c42","#2c3c58","#3c4e6a","#506080","#566577","#748098","#96a8bc"] },
+      "accent-interactive": { "role": "primary", "displayName": "Signal Blue",        "canonical": "oklch(65% 0.20 264)",  "tonalRamp": ["#050c2e","#0a1650","#112070","#1a3194","#2d57c2","#4f8cff","#85b2ff","#c5d8ff"] },
+      "accent-success":   { "role": "secondary", "displayName": "Heartbeat Green",    "canonical": "oklch(78% 0.17 164)",  "tonalRamp": ["#002418","#003d29","#00573c","#00754f","#069963","#10be7c","#34d399","#a1f0cc"] },
+      "accent-warning":   { "role": "tertiary",  "displayName": "Amber Alert",        "canonical": "oklch(82% 0.18 76)",   "tonalRamp": ["#241600","#3d2600","#5a3800","#784e00","#9e6a00","#c88c00","#fbbf24","#fde68a"] },
+      "accent-danger":    { "role": "tertiary",  "displayName": "CVE Red",            "canonical": "oklch(70% 0.20 22)",   "tonalRamp": ["#2e0808","#4a0e0e","#6a1414","#8f1c1c","#b82c2c","#e04444","#f87171","#fdb8b8"] },
+      "accent-approval":  { "role": "tertiary",  "displayName": "Approval Violet",    "canonical": "oklch(72% 0.18 298)",  "tonalRamp": ["#150a2e","#22124a","#321a6a","#46248e","#6040b8","#8860e0","#a78bfa","#d4c0ff"] },
+      "accent-action":    { "role": "tertiary",  "displayName": "Action Cyan",        "canonical": "oklch(82% 0.16 196)",  "tonalRamp": ["#001c24","#003040","#00485e","#006280","#0090aa","#10b8d4","#22d3ee","#a0eef8"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display / Metric", "purpose": "Operational metric values only. Never for headings or decorative numbers." },
+      "title":   { "displayName": "Title",             "purpose": "Section headings, modal titles, topbar label." },
+      "body":    { "displayName": "Body",               "purpose": "All data content and copy. Cap at 65ch for multi-line prose." },
+      "label":   { "displayName": "Label",              "purpose": "Column headers, badge text, category section dividers. Always uppercase." },
+      "mono":    { "displayName": "Mono",               "purpose": "Machine IDs, version strings, command output, install scripts." }
+    },
+    "shadows": [
+      { "name": "ambient-large", "value": "0 8px 32px rgba(0,0,0,.45)", "purpose": "Sections, KPI cards, modals. Deep ambient grounding." },
+      { "name": "ambient-small", "value": "0 2px 8px rgba(0,0,0,.3)",   "purpose": "Lighter floating elements; available for tooltips and popovers." }
+    ],
+    "motion": [
+      { "name": "ease-standard",    "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Default ease-out for UI state transitions (hover, focus, active)." },
+      { "name": "duration-fast",    "value": "120ms",                           "purpose": "Button press feedback, badge state changes." },
+      { "name": "duration-default", "value": "200ms",                           "purpose": "Modal enter/exit, panel transitions." },
+      { "name": "duration-slow",    "value": "400ms",                           "purpose": "Toast slide-in, page-level transitions." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "600px",  "purpose": "Single-column KPI grid, hide topbar right chips." },
+      { "name": "tablet", "value": "1080px", "purpose": "Hide sidebar, show mobile brand header." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action trigger. One per view section. Gradient fill is the only gradient in the system.",
+      "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"12\" y1=\"5\" x2=\"12\" y2=\"19\"/><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg>Add agent</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(135deg, #2563eb, #7c3aed); color: #e2eaf6; font-size: 12px; font-weight: 600; font-family: Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 14px rgba(79,140,255,.25); transition: box-shadow 120ms cubic-bezier(0.23,1,0.32,1), border-color 120ms cubic-bezier(0.23,1,0.32,1), transform 120ms cubic-bezier(0.23,1,0.32,1); } .ds-btn-primary svg { width: 13px; height: 13px; flex-shrink: 0; } @media (hover: hover) and (pointer: fine) { .ds-btn-primary:hover { box-shadow: 0 6px 20px rgba(79,140,255,.35); border-color: rgba(255,255,255,.18); } } .ds-btn-primary:active { transform: scale(0.97); } .ds-btn-primary:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Secondary actions. Understated surface fill; never competes with the primary.",
+      "html": "<button class=\"ds-btn-default\">Queue</button>",
+      "css": ".ds-btn-default { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 8px; border: 1px solid #1e2d45; background: #132035; color: #e2eaf6; font-size: 12px; font-weight: 600; font-family: Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; white-space: nowrap; transition: background 120ms cubic-bezier(0.23,1,0.32,1), border-color 120ms cubic-bezier(0.23,1,0.32,1), transform 120ms cubic-bezier(0.23,1,0.32,1); } @media (hover: hover) and (pointer: fine) { .ds-btn-default:hover { background: #0f1828; border-color: rgba(79,140,255,.4); } } .ds-btn-default:active { transform: scale(0.97); } .ds-btn-default:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive irreversible actions only: delete machine, reject agent. Never for warnings.",
+      "html": "<button class=\"ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 8px; border: 1px solid rgba(248,113,113,.3); background: rgba(127,29,29,.7); color: #f87171; font-size: 11.5px; font-weight: 600; font-family: Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; white-space: nowrap; transition: background 120ms cubic-bezier(0.23,1,0.32,1), border-color 120ms cubic-bezier(0.23,1,0.32,1), transform 120ms cubic-bezier(0.23,1,0.32,1); } @media (hover: hover) and (pointer: fine) { .ds-btn-danger:hover { background: rgba(127,29,29,.9); border-color: rgba(248,113,113,.5); } } .ds-btn-danger:active { transform: scale(0.97); } .ds-btn-danger:focus-visible { outline: 2px solid #f87171; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-priority auxiliary actions in dense contexts. Transparent at rest.",
+      "html": "<button class=\"ds-btn-ghost\">Clear jobs</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #94a3b8; font-size: 11.5px; font-weight: 600; font-family: Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; white-space: nowrap; transition: background 120ms cubic-bezier(0.23,1,0.32,1), border-color 120ms cubic-bezier(0.23,1,0.32,1), transform 120ms cubic-bezier(0.23,1,0.32,1); } @media (hover: hover) and (pointer: fine) { .ds-btn-ghost:hover { background: rgba(255,255,255,.04); border-color: #172338; } } .ds-btn-ghost:active { transform: scale(0.97); } .ds-btn-ghost:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Badge: Online (ok)",
+      "kind": "chip",
+      "refersTo": "badge-ok",
+      "description": "Online agents, successful jobs, clean security posture. Paired with a pulsing status dot.",
+      "html": "<span class=\"ds-badge-ok\"><span class=\"ds-status-dot-online\"></span>online</span>",
+      "css": ".ds-badge-ok { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; color: #34d399; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.25); font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-status-dot-online { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 6px #34d399; animation: ds-pulse 2s ease infinite; flex-shrink: 0; } @keyframes ds-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(0.9); } } @media (prefers-reduced-motion: reduce) { .ds-status-dot-online { animation: none; } }"
+    },
+    {
+      "name": "Badge: Danger (CVE / failed)",
+      "kind": "chip",
+      "refersTo": "badge-bad",
+      "description": "CVE exposure, offline agents, failed jobs. High-attention signal; appears rarely.",
+      "html": "<span class=\"ds-badge-bad\">CVE risk</span>",
+      "css": ".ds-badge-bad { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; color: #f87171; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.25); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Badge: Warning (stale / reboot)",
+      "kind": "chip",
+      "refersTo": "badge-warn",
+      "description": "Stale check-in, reboot-pending state. Non-critical but requires attention.",
+      "html": "<span class=\"ds-badge-warn\">stale</span>",
+      "css": ".ds-badge-warn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; color: #fbbf24; background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.25); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Nav Link",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Sidebar navigation item. Transparent at rest; subtle surface on hover. Icon at 75% opacity.",
+      "html": "<a class=\"ds-nav-link\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M8 21h8M12 17v4\"/></svg><span class=\"ds-nav-link-label\">Machines</span><span class=\"ds-nav-chip ds-nav-chip-ok\">12</span></a>",
+      "css": ".ds-nav-link { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; color: #94a3b8; border: 1px solid transparent; text-decoration: none; font-family: Inter, ui-sans-serif, system-ui, sans-serif; transition: background 120ms cubic-bezier(0.23,1,0.32,1), color 120ms cubic-bezier(0.23,1,0.32,1), border-color 120ms cubic-bezier(0.23,1,0.32,1), opacity 120ms cubic-bezier(0.23,1,0.32,1); } .ds-nav-link svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .75; transition: opacity 120ms cubic-bezier(0.23,1,0.32,1); } .ds-nav-link-label { flex: 1; font-size: 13px; font-weight: 500; } .ds-nav-chip { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: #132035; color: #94a3b8; border: 1px solid #172338; min-width: 22px; text-align: center; } .ds-nav-chip-ok { background: rgba(52,211,153,.12); color: #34d399; border-color: rgba(52,211,153,.25); } @media (hover: hover) and (pointer: fine) { .ds-nav-link:hover { color: #e2eaf6; background: rgba(255,255,255,.05); border-color: #172338; } .ds-nav-link:hover svg { opacity: 1; } } .ds-nav-link:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": null,
+      "description": "Fleet filter. Icon-leading input; focus shifts border to Signal Blue with glow.",
+      "html": "<div class=\"ds-search-wrap\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"ds-search-input\" type=\"text\" placeholder=\"Filter by hostname, ID, group…\"></div>",
+      "css": ".ds-search-wrap { position: relative; max-width: 320px; } .ds-search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: #566577; pointer-events: none; } .ds-search-input { width: 100%; background: #132035; border: 1px solid #172338; color: #e2eaf6; border-radius: 8px; padding: 7px 10px 7px 32px; outline: none; font-size: 13px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; transition: border-color 120ms cubic-bezier(0.23,1,0.32,1), box-shadow 120ms cubic-bezier(0.23,1,0.32,1); } .ds-search-input::placeholder { color: #566577; } .ds-search-input:focus { border-color: rgba(79,140,255,.6); box-shadow: 0 0 0 3px rgba(79,140,255,.12); }"
+    },
+    {
+      "name": "Section Container",
+      "kind": "card",
+      "refersTo": null,
+      "description": "The primary content grouping unit. Never nested. Header + optional filter bar + content body.",
+      "html": "<section class=\"ds-section\"><div class=\"ds-section-head\"><div class=\"ds-section-head-left\"><div class=\"ds-section-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M8 21h8M12 17v4\"/></svg></div><div><div class=\"ds-section-title\">Fleet inventory</div><div class=\"ds-section-sub\">Agent status, patch posture and lifecycle controls</div></div></div><div class=\"ds-section-actions\"><span class=\"ds-badge-ok\">12 agents</span></div></div></section>",
+      "css": ".ds-section { border: 1px solid #172338; border-radius: 16px; background: rgba(11,17,32,.9); box-shadow: 0 8px 32px rgba(0,0,0,.45); overflow: hidden; } .ds-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #172338; background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, transparent 100%); } .ds-section-head-left { display: flex; align-items: center; gap: 10px; } .ds-section-icon { width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid #172338; display: grid; place-items: center; color: #94a3b8; } .ds-section-icon svg { width: 14px; height: 14px; } .ds-section-title { font-size: 14px; font-weight: 700; letter-spacing: -.01em; color: #e2eaf6; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-section-sub { font-size: 12px; color: #566577; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-section-actions { display: flex; gap: 8px; align-items: center; } .ds-badge-ok { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; color: #34d399; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.25); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "PatchPilot's admin interface is not a dashboard. It is an instrument panel: every readout is where the operator expects it, every state is unambiguous, every action produces a predictable outcome. The visual language descends from aerospace and industrial control systems, not SaaS product design. Where a consumer product optimizes for first impressions, this interface optimizes for the 300th session.\n\nThe surface hierarchy is structural, not decorative. Void Navy at the base, four steps of rising brightness toward floating elements, ambient shadows for elements that genuinely float above the content plane. Nothing glows for atmosphere. Color communicates system state and nothing else.\n\nThis system explicitly rejects the shiny SaaS dashboard idiom: no gradient-accented metric heroes, no color deployed for energy rather than information, no glass cards used as atmosphere.",
+    "keyCharacteristics": [
+      "Four-step dark surface stack from void canvas to floating elements",
+      "Six semantic accent colors, each strictly bound to one system state",
+      "Compressed typographic scale with extreme weight contrast (label at 10.5px/700 vs. metric at 30px/800)",
+      "Transitions only, no choreography, no decorative motion",
+      "High information density, near-zero decoration"
+    ],
+    "rules": [
+      { "name": "The State Color Rule",    "body": "Every accent color maps to exactly one system state. If you are adding a color that doesn't map to online/success, stale/warning, danger/CVE/failed, approval-pending, or action-in-flight, the element should use text-secondary or border-default instead.", "section": "colors" },
+      { "name": "The No-Shine Rule",       "body": "Glow effects and radial gradient overlays in the current KPI cards are a legacy pattern. Do not extend them. New components use surface layering and borders for depth, not luminosity.", "section": "colors" },
+      { "name": "The Weight-Talks Rule",   "body": "Hierarchy is never achieved through color alone. Size and weight carry information hierarchy; color carries system state. Keep these responsibilities separated at all times.", "section": "typography" },
+      { "name": "The Flat-at-Rest Rule",   "body": "Shadows appear only on components that sit at a raised or floating surface level. Table rows, badges, and inline labels carry no shadows.", "section": "elevation" },
+      { "name": "The One-Step Rule",       "body": "A component never jumps more than one surface step from its context. Never skip a step in the surface stack.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use exact values for all data: full timestamps, integer counts, literal version strings.",
+      "Do bind each accent color to exactly one system state.",
+      "Do cap body-level prose at 65ch line length for any text longer than one line.",
+      "Do use monospace for all machine identifiers, OS version strings, kernel versions, command output, and install scripts.",
+      "Do implement prefers-reduced-motion: suppress the status-dot pulse animation and all transition-based motion.",
+      "Do gate hover state CSS behind @media (hover: hover) and (pointer: fine).",
+      "Do add transform: scale(0.97) on :active to every button variant.",
+      "Do use WCAG 2.1 AA contrast (4.5:1 minimum) for all text against its background."
+    ],
+    "donts": [
+      "Don't use gradient text (background-clip: text with a gradient). Single solid color only.",
+      "Don't extend the KPI card glow/gradient overlay pattern to new components.",
+      "Don't add new border-left or border-right side-stripe accents greater than 1px.",
+      "Don't build shiny SaaS dashboards: no glowing card grids, no gradient-accented big-number heroes.",
+      "Don't use glassmorphism decoratively. Backdrop blur appears only in the sidebar and topbar.",
+      "Don't use color for decoration. If a color choice cannot be explained by answering 'what system state does this communicate,' it is wrong.",
+      "Don't animate keyboard-triggered or high-frequency actions.",
+      "Don't nest section containers.",
+      "Don't introduce a new accent color. The six-color state vocabulary is closed."
+    ]
+  }
+}

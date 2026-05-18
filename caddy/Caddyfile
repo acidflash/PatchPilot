@@ -7,3 +7,11 @@
 patch.labnat.lan {
     reverse_proxy backend:8080
 }
+
+# Internal agent endpoint — allows on-LAN agents to connect without NAT
+# so their real 192.168.x.x IPs are recorded instead of the firewall IP.
+# Enable by setting AGENT_INTERNAL_HOSTNAME=patch-agent.labnat.lan in .env
+# and pointing agent server_url at https://patch-agent.labnat.lan
+patch-agent.labnat.lan {
+    reverse_proxy backend:8080
+}

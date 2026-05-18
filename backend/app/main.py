@@ -519,7 +519,7 @@ def enroll_agent(payload: dict, request: Request, db: Session = Depends(get_db))
     if not machine_id or not hostname:
         raise HTTPException(status_code=400, detail="machine_id and hostname required")
 
-    ip = request.client.host if request.client else "unknown"
+    ip = (request.client.host if request.client else "unknown").replace("::ffff:", "")
     if not _check_enroll_rate(ip):
         raise HTTPException(status_code=429, detail="Too many enrollment requests")
 
@@ -597,7 +597,8 @@ def checkin(
     machine.security_updates_available = int(payload.get("security_updates_available", 0))
     machine.reboot_required = bool(payload.get("reboot_required", False))
     machine.last_error = payload.get("last_error")
-    machine.ip_address = request.client.host if request.client else None
+    raw_ip = request.client.host if request.client else None
+    machine.ip_address = raw_ip.replace("::ffff:", "") if raw_ip else None
     machine.last_seen = datetime.utcnow()
     if not machine.first_seen:
         machine.first_seen = datetime.utcnow()

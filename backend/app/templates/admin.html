@@ -1080,6 +1080,9 @@
                     <td>
                       <div class="cell-title">{{ m.hostname }}</div>
                       <div class="cell-sub mono">{{ m.machine_id }}</div>
+                      {% if m.ip_address %}
+                        <div class="cell-sub mono">{{ m.ip_address | replace('::ffff:', '') }}</div>
+                      {% endif %}
                       {% if not m.active and m.disabled_reason %}<div class="cell-sub text-danger">{{ m.disabled_reason }}</div>{% endif %}
                       {% if m.last_error %}<div class="cell-sub text-danger" style="max-width:220px;">{{ m.last_error[:120] }}</div>{% endif %}
                     </td>

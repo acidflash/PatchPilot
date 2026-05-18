@@ -130,8 +130,19 @@ def migrate_db():
         conn.execute(text("UPDATE machines SET first_seen = created_at WHERE first_seen IS NULL"))
 
 
+def get_client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        ip = forwarded_for.split(",")[0].strip()
+    elif request.client:
+        ip = request.client.host
+    else:
+        return None
+    return ip.replace("::ffff:", "")
+
+
 def audit(db: Session, action: str, actor: str = "admin", target_type: str | None = None, target_id: str | None = None, details: str | None = None, request: Request | None = None):
-    ip = request.client.host if request and request.client else None
+    ip = get_client_ip(request) if request else None
     db.add(AuditLog(actor=actor, action=action, target_type=target_type, target_id=target_id, ip_address=ip, details=details))
 
 
@@ -519,7 +530,7 @@ def enroll_agent(payload: dict, request: Request, db: Session = Depends(get_db))
     if not machine_id or not hostname:
         raise HTTPException(status_code=400, detail="machine_id and hostname required")
 
-    ip = (request.client.host if request.client else "unknown").replace("::ffff:", "")
+    ip = get_client_ip(request) or "unknown"
     if not _check_enroll_rate(ip):
         raise HTTPException(status_code=429, detail="Too many enrollment requests")
 
@@ -597,8 +608,7 @@ def checkin(
     machine.security_updates_available = int(payload.get("security_updates_available", 0))
     machine.reboot_required = bool(payload.get("reboot_required", False))
     machine.last_error = payload.get("last_error")
-    raw_ip = request.client.host if request.client else None
-    machine.ip_address = raw_ip.replace("::ffff:", "") if raw_ip else None
+    machine.ip_address = get_client_ip(request)
     machine.last_seen = datetime.utcnow()
     if not machine.first_seen:
         machine.first_seen = datetime.utcnow()

@@ -23,6 +23,7 @@ services:
       PATCHPILOT_AUTO_AGENT_UPDATE: ${PATCHPILOT_AUTO_AGENT_UPDATE:-false}
       PATCHPILOT_AUTO_APPROVE_AGENTS: ${PATCHPILOT_AUTO_APPROVE_AGENTS:-false}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      AGENT_INTERNAL_HOSTNAME: ${AGENT_INTERNAL_HOSTNAME:-}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro

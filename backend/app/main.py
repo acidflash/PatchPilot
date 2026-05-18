@@ -37,6 +37,10 @@ ADMIN_INTERNAL_HOSTNAMES = {
     ).split(",")
     if h.strip()
 }
+# Optional: separate internal hostname that only allows agent API (not admin UI).
+# Set AGENT_INTERNAL_HOSTNAME=patch-agent.example.com to let on-LAN agents
+# connect without NAT so their real 192.168.x.x IPs are recorded.
+AGENT_INTERNAL_HOSTNAME = os.getenv("AGENT_INTERNAL_HOSTNAME", "").strip().lower()
 
 # Per-IP enrollment rate limiter (in-memory, resets on restart)
 _enroll_timestamps: dict[str, list[float]] = defaultdict(list)
@@ -92,6 +96,17 @@ async def host_path_guard(request: Request, call_next):
 
     if host in {h.lower() for h in ADMIN_INTERNAL_HOSTNAMES}:
         if path.startswith("/api/v1/agent/") or path.startswith("/agent/") or path == "/install.sh":
+            return PlainTextResponse("not found", status_code=404)
+
+    # Internal agent hostname: only agent API allowed, admin UI blocked
+    if AGENT_INTERNAL_HOSTNAME and host == AGENT_INTERNAL_HOSTNAME:
+        allowed = (
+            path == "/healthz"
+            or path == "/install.sh"
+            or path.startswith("/agent/")
+            or path.startswith("/api/v1/agent/")
+        )
+        if not allowed:
             return PlainTextResponse("not found", status_code=404)
 
     return await call_next(request)

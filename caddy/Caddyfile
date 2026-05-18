@@ -1,0 +1,17 @@
+{
+    email admin@example.com
+    acme_ca https://pki.example.com/directory
+    acme_ca_root /etc/caddy/certs/root-01-cert.pem
+}
+
+patch-admin.example.com {
+    reverse_proxy backend:8080
+}
+
+# Internal agent endpoint — allows on-LAN agents to connect without NAT
+# so their real 192.168.x.x IPs are recorded instead of the firewall IP.
+# Enable by setting AGENT_INTERNAL_HOSTNAME=patch-agent.example.com in .env
+# and pointing agent server_url at https://patch-agent.example.com
+patch-agent.example.com {
+    reverse_proxy backend:8080
+}

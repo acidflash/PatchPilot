@@ -911,13 +911,7 @@
             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
           </svg>
           <span class="nav-link-label">Jobs</span>
-          {% if ns.failed > 0 %}
-            <span class="nav-chip alert">{{ ns.failed }} err</span>
-          {% elif ns.pending > 0 %}
-            <span class="nav-chip warn">{{ ns.pending }}</span>
-          {% else %}
-            <span class="nav-chip">{{ jobs|length }}</span>
-          {% endif %}
+          <span id="nav-jobs-chip-wrap">{% if ns.failed > 0 %}<span class="nav-chip alert">{{ ns.failed }} err</span>{% elif ns.pending > 0 %}<span class="nav-chip warn">{{ ns.pending }}</span>{% else %}<span class="nav-chip">{{ jobs|length }}</span>{% endif %}</span>
         </a>
 
         <a href="#packages" class="nav-link">
@@ -1058,8 +1052,8 @@
               </svg>
             </div>
             <div class="kpi-label">Job queue</div>
-            <div class="kpi-value">{{ ns.pending }}</div>
-            <div class="kpi-sub">{{ ns.approval }} awaiting approval · {{ ns.failed }} failed</div>
+            <div class="kpi-value" id="kpi-jobs-value">{{ ns.pending }}</div>
+            <div class="kpi-sub" id="kpi-jobs-sub">{{ ns.approval }} awaiting approval · {{ ns.failed }} failed</div>
           </div>
         </div>
 
@@ -1254,7 +1248,7 @@
                 <div class="section-sub">Execution queue, approval gating, output logs</div>
               </div>
             </div>
-            <div class="section-actions">
+            <div class="section-actions" id="jobs-section-actions">
               {% if ns.failed > 0 %}<span class="badge bad">{{ ns.failed }} failed</span>{% endif %}
               {% if ns.approval > 0 %}<span class="badge purple">{{ ns.approval }} approval</span>{% endif %}
               <span class="badge warn">{{ jobs|length }} total</span>
@@ -1274,7 +1268,7 @@
                   <th></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="jobs-tbody">
                 {% for j in jobs %}
                   <tr>
                     <td class="mono text-muted">#{{ j.id }}</td>
@@ -1720,6 +1714,123 @@
     tick();
     setInterval(tick, 1000);
   }
+
+  // ── Jobs auto-reload ─────────────────────────────────────────────
+  var _jobsLastHash = "";
+
+  function escHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function buildJobRow(j, csrf) {
+    var statusMap = {
+      success:          '<span class="badge ok">success</span>',
+      failed:           '<span class="badge bad">failed</span>',
+      pending:          '<span class="badge warn">pending</span>',
+      running:          '<span class="badge info">running</span>',
+      approval_required:'<span class="badge purple">approval</span>',
+    };
+    var statusBadge = statusMap[j.status] ||
+      '<span class="badge disabled">' + escHtml(j.status) + '</span>';
+
+    var approveBtn = j.status === "approval_required"
+      ? '<form method="post" action="/admin/jobs/' + j.id + '/approve">' +
+          '<input type="hidden" name="csrf_token" value="' + escHtml(csrf) + '">' +
+          '<button class="btn btn-primary btn-sm" type="submit">Approve</button>' +
+        '</form>'
+      : "";
+
+    return '<tr>' +
+      '<td class="mono text-muted">#' + j.id + '</td>' +
+      '<td>' +
+        '<div class="cell-title">' + escHtml(j.machine_hostname || "—") + '</div>' +
+        '<div class="cell-sub">' + escHtml(j.created_by) + '</div>' +
+      '</td>' +
+      '<td><span class="badge cyan">' + escHtml(j.action) + '</span></td>' +
+      '<td>' + statusBadge +
+        '<div class="cell-sub">exit: ' + (j.exit_code !== null && j.exit_code !== undefined ? j.exit_code : "—") + '</div>' +
+      '</td>' +
+      '<td>' +
+        '<div class="text-sm">' + escHtml(j.created_at) + '</div>' +
+        '<div class="cell-sub">start: ' + escHtml(j.started_at || "—") + '</div>' +
+        '<div class="cell-sub">end: ' + escHtml(j.finished_at || "—") + '</div>' +
+      '</td>' +
+      '<td style="max-width:280px;"><pre>' + escHtml(j.output) + '</pre></td>' +
+      '<td>' +
+        '<div style="display:flex; flex-direction:column; gap:5px;">' +
+          approveBtn +
+          '<form method="post" action="/admin/jobs/' + j.id + '/delete" data-confirm="Delete this job?">' +
+            '<input type="hidden" name="csrf_token" value="' + escHtml(csrf) + '">' +
+            '<button class="btn btn-danger btn-sm" type="submit">Delete</button>' +
+          '</form>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
+  }
+
+  function refreshJobs() {
+    fetch("/admin/api/jobs")
+      .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function(data) {
+        var hash = JSON.stringify(data);
+        if (hash === _jobsLastHash) return;
+        _jobsLastHash = hash;
+
+        var csrf = csrfMeta ? csrfMeta.content : "";
+
+        var tbody = document.getElementById("jobs-tbody");
+        if (tbody) {
+          if (data.jobs.length === 0) {
+            tbody.innerHTML =
+              '<tr><td colspan="7"><div class="empty-state">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+              '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
+              '<p>No jobs queued</p></div></td></tr>';
+          } else {
+            tbody.innerHTML = data.jobs.map(function(j) { return buildJobRow(j, csrf); }).join("");
+          }
+          tbody.querySelectorAll("form[data-confirm]").forEach(function(form) {
+            form.addEventListener("submit", function(e) {
+              if (!confirm(this.dataset.confirm)) e.preventDefault();
+            });
+          });
+        }
+
+        var sa = document.getElementById("jobs-section-actions");
+        if (sa) {
+          var st = data.stats;
+          var badges = "";
+          if (st.failed > 0)   badges += '<span class="badge bad">'    + st.failed   + " failed</span>";
+          if (st.approval > 0) badges += '<span class="badge purple">'  + st.approval + " approval</span>";
+          badges += '<span class="badge warn">' + st.total + " total</span>";
+          sa.innerHTML = badges;
+        }
+
+        var kpiVal = document.getElementById("kpi-jobs-value");
+        var kpiSub = document.getElementById("kpi-jobs-sub");
+        if (kpiVal) kpiVal.textContent = data.stats.pending;
+        if (kpiSub) kpiSub.textContent = data.stats.approval + " awaiting approval · " + data.stats.failed + " failed";
+
+        var navWrap = document.getElementById("nav-jobs-chip-wrap");
+        if (navWrap) {
+          var st = data.stats;
+          if (st.failed > 0) {
+            navWrap.innerHTML = '<span class="nav-chip alert">' + st.failed + " err</span>";
+          } else if (st.pending > 0) {
+            navWrap.innerHTML = '<span class="nav-chip warn">' + st.pending + '</span>';
+          } else {
+            navWrap.innerHTML = '<span class="nav-chip">' + st.total + '</span>';
+          }
+        }
+      })
+      .catch(function() {});
+  }
+
+  setInterval(refreshJobs, 5000);
 }());
 </script>
 

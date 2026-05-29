@@ -502,6 +502,36 @@ def delete_schedule(schedule_id: int, _: None = Depends(require_csrf), db: Sessi
     return RedirectResponse("/admin", status_code=303)
 
 
+@app.get("/admin/api/jobs")
+def admin_jobs_json(db: Session = Depends(get_db)):
+    jobs = db.query(Job).order_by(Job.created_at.desc()).limit(50).all()
+    jobs_data = []
+    pending = failed = approval = 0
+    for j in jobs:
+        if j.status in ("pending", "running"):
+            pending += 1
+        elif j.status == "failed":
+            failed += 1
+        elif j.status == "approval_required":
+            approval += 1
+        jobs_data.append({
+            "id": j.id,
+            "machine_hostname": j.machine.hostname if j.machine else None,
+            "created_by": j.created_by or "",
+            "action": j.action,
+            "status": j.status,
+            "exit_code": j.exit_code,
+            "created_at": str(j.created_at) if j.created_at else None,
+            "started_at": str(j.started_at) if j.started_at else None,
+            "finished_at": str(j.finished_at) if j.finished_at else None,
+            "output": j.output or "",
+        })
+    return {
+        "jobs": jobs_data,
+        "stats": {"pending": pending, "failed": failed, "approval": approval, "total": len(jobs_data)},
+    }
+
+
 @app.post("/admin/machines/{machine_pk}/approve")
 def approve_machine(machine_pk: int, _: None = Depends(require_csrf), db: Session = Depends(get_db), request: Request = None):
     machine = db.query(Machine).filter(Machine.id == machine_pk).first()

@@ -132,6 +132,14 @@ docker compose up -d --build
 
 Admin-gränssnittet nås på `http://localhost:8080/admin`.
 
+### Deploy
+
+```bash
+./deploy.sh
+```
+
+Pushar lokala commits, pullar på servern och bygger om containern.
+
 ### Agentinstallation på Ubuntu-maskin
 
 ```bash

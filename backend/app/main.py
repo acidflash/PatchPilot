@@ -502,6 +502,63 @@ def delete_schedule(schedule_id: int, _: None = Depends(require_csrf), db: Sessi
     return RedirectResponse("/admin", status_code=303)
 
 
+@app.get("/admin/api/machines")
+def admin_machines_json(db: Session = Depends(get_db)):
+    machines = db.query(Machine).order_by(Machine.hostname.asc()).all()
+    groups = db.query(Group).order_by(Group.name.asc()).all()
+    machine_groups_rows = db.query(MachineGroup).all()
+    group_map: dict[int, list[int]] = {}
+    for mg in machine_groups_rows:
+        group_map.setdefault(mg.machine_id, []).append(mg.group_id)
+    groups_by_id = {g.id: g.name for g in groups}
+
+    total = online = stale = offline = disabled_count = security = reboot = pending_approval = 0
+    machines_data = []
+    for m in machines:
+        total += 1
+        st = machine_state(m)
+        if st == "online":    online += 1
+        elif st == "stale":   stale += 1
+        elif st == "offline": offline += 1
+        else:                 disabled_count += 1
+        if m.security_updates_available and m.security_updates_available > 0: security += 1
+        if m.reboot_required: reboot += 1
+        if not m.approved: pending_approval += 1
+        group_names = [groups_by_id[gid] for gid in group_map.get(m.id, []) if gid in groups_by_id]
+        machines_data.append({
+            "id": m.id,
+            "machine_id": m.machine_id,
+            "hostname": m.hostname,
+            "ip_address": (m.ip_address or "").replace("::ffff:", ""),
+            "os_version": m.os_version or "",
+            "kernel_version": m.kernel_version or "",
+            "agent_version": m.agent_version or "",
+            "updates_available": m.updates_available or 0,
+            "security_updates_available": m.security_updates_available or 0,
+            "reboot_required": bool(m.reboot_required),
+            "auto_patch": bool(m.auto_patch),
+            "auto_reboot": bool(m.auto_reboot),
+            "approved": bool(m.approved),
+            "approval_status": m.approval_status or "",
+            "active": bool(m.active),
+            "disabled_reason": m.disabled_reason or "",
+            "last_error": m.last_error or "",
+            "last_seen": str(m.last_seen) if m.last_seen else "",
+            "last_success_at": str(m.last_success_at) if m.last_success_at else "",
+            "state": st,
+            "groups": group_names,
+        })
+    return {
+        "machines": machines_data,
+        "stats": {
+            "total": total, "online": online, "stale": stale,
+            "offline": offline, "disabled": disabled_count,
+            "security": security, "reboot": reboot,
+            "pending_approval": pending_approval,
+        },
+    }
+
+
 @app.get("/admin/api/jobs")
 def admin_jobs_json(db: Session = Depends(get_db)):
     jobs = db.query(Job).order_by(Job.created_at.desc()).limit(50).all()

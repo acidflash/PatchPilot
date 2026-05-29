@@ -16,7 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.5.1] — 2025
+## [0.5.1] — 2026-05-29
 
 ### Added
 - Auto-reload for the Fleet table without full page refresh
@@ -27,7 +27,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.5.0] — 2025
+## [0.5.0] — 2026-05-18
 
 ### Added
 - `AGENT_INTERNAL_HOSTNAME` env var for correct real IP detection behind a reverse proxy
@@ -47,7 +47,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.4.0] — 2025
+## [0.4.0] — 2026-05-09
 
 ### Added
 - Full enterprise UI redesign: dark theme, sticky sidebar, KPI cards, real-time search
@@ -57,7 +57,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.3.0] — 2025
+## [0.3.0] — 2026-05-09
 
 ### Added
 - Full documentation of all environment variables in `.env.example`
@@ -70,7 +70,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.1.0] — 2025
+## [0.1.0] — 2026-05-09
 
 ### Added
 - Initial release

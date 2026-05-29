@@ -8,11 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] — 2026-05-29
+
 ### Changed
 - Translated README.md and INTERNALS.md to English
 
 ### Added
 - `deploy.sh` script for one-command deploy: push local commits, pull on server, rebuild container
+- CHANGELOG.md
 
 ---
 

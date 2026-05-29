@@ -1,136 +1,136 @@
 # PatchPilot
 
-Självhostad patchhantering för Ubuntu-servrar. Agenter på varje maskin rapporterar in status, tar emot kommandon och utför kontrollerade uppdateringar — allt styrbart från ett webbaserat kontrollcenter.
+Self-hosted patch management for Ubuntu servers. Agents on each machine report status, receive commands, and perform controlled updates — all manageable from a web-based control center.
 
 ---
 
-## Vad är PatchPilot?
+## What is PatchPilot?
 
-PatchPilot består av två delar: en **server** (kontrollcentret) och en **agent** (körs på varje Ubuntu-maskin som ska hanteras). Agenten pratar med servern — inte tvärtom. Det innebär att inga portar behöver öppnas mot de hanterade maskinerna.
+PatchPilot consists of two parts: a **server** (the control center) and an **agent** (runs on each Ubuntu machine to be managed). The agent talks to the server — not the other way around. This means no ports need to be opened toward the managed machines.
 
 ---
 
-## Funktioner
+## Features
 
-### Agent — installeras på varje Ubuntu-server
+### Agent — installed on each Ubuntu server
 
-**Enrollment (registrering)**
-Agenten registrerar sig automatiskt mot servern vid första start. Den genererar ett unikt maskin-ID baserat på hostname + slumpmässigt suffix och lagrar det lokalt. Servern utfärdar ett signerat bearer-token som används vid all fortsatt kommunikation. Omregistrering hanteras automatiskt — om maskinen redan är registrerad avslutar agenten rent utan felkod.
+**Enrollment**
+The agent registers itself with the server on first start. It generates a unique machine ID based on hostname + random suffix and stores it locally. The server issues a signed bearer token used in all subsequent communication. Re-enrollment is handled automatically — if the machine is already registered, the agent exits cleanly without an error code.
 
-**Check-in (incheckning)**
-Agenten checkar in mot servern var femte minut och rapporterar:
-- Hostname, OS-version, kernelversion, agentversion
-- Antal tillgängliga uppdateringar (totalt respektive säkerhetsrelaterade)
-- Om omstart krävs efter en tidigare uppdatering
-- Lista med paket som har tillgängliga versioner, inklusive flagga för CVE-relaterade paket
+**Check-in**
+The agent checks in with the server every five minutes and reports:
+- Hostname, OS version, kernel version, agent version
+- Number of available updates (total and security-related)
+- Whether a reboot is required after a previous update
+- List of packages with available versions, including a flag for CVE-related packages
 
-**Jobbexekvering**
-Servern kan köa kommandon som agenten plockar upp vid nästa incheckning. Agenten rapporterar status (startad → klar) och skickar tillbaka exit-kod och textoutput. Tillåtna kommandon är hårdkodade — agenten accepterar inte godtyckliga kommandon från servern.
+**Job execution**
+The server can queue commands that the agent picks up at the next check-in. The agent reports status (started → done) and returns the exit code and text output. Allowed commands are hardcoded — the agent does not accept arbitrary commands from the server.
 
-Tillåtna jobb:
-| Kommando | Vad det gör |
+Allowed jobs:
+| Command | What it does |
 |---|---|
-| `check_updates` | Kör `apt-get update` och räknar tillgängliga uppdateringar |
-| `upgrade` | Fullständig `apt-get upgrade` |
-| `security_upgrade` | Uppgraderar enbart CVE-märkta paket |
-| `apt_clean` | Rensar APT-cache |
-| `self_update` | Laddar ned ny agentversion från servern, verifierar SHA256-hash och ersätter sig själv atomiskt |
-| `reboot` | Startar om maskinen |
+| `check_updates` | Runs `apt-get update` and counts available updates |
+| `upgrade` | Full `apt-get upgrade` |
+| `security_upgrade` | Upgrades only CVE-flagged packages |
+| `apt_clean` | Clears the APT cache |
+| `self_update` | Downloads new agent version from the server, verifies SHA256 hash, and replaces itself atomically |
+| `reboot` | Reboots the machine |
 
-**Självuppdatering**
-Agenten kan uppdatera sig själv via servern. Den laddar ned den nya versionen, kontrollerar SHA256-checksumman mot serverns manifest, skriver den till en temporärfil *på samma filsystem* som den befintliga agentfilen och byter sedan ut den atomiskt med `rename()` — en halvskriven fil kan aldrig aktiveras.
+**Self-update**
+The agent can update itself via the server. It downloads the new version, verifies the SHA256 checksum against the server's manifest, writes it to a temporary file *on the same filesystem* as the existing agent file, and then atomically swaps it using `rename()` — a partially written file can never be activated.
 
-**Persistens**
-Agenten installeras som en `systemd`-tjänst och startas automatiskt vid omstart. Konfiguration (server-URL, token, maskin-ID) lagras i `/etc/patchpilot/agent.json`.
+**Persistence**
+The agent is installed as a `systemd` service and starts automatically on reboot. Configuration (server URL, token, machine ID) is stored in `/etc/patchpilot/agent.json`.
 
 ---
 
-### Server — kontrollcentret
+### Server — the control center
 
-**Webbaserat kontrollcenter (Admin UI)**
-Ett enterprise-orienterat mörkt gränssnitt med sticky sidebar, KPI-kort och realtidsfiltrering. Tillgängligt via webbläsaren. Kräver inte att man kan nå de hanterade maskinerna direkt.
+**Web-based control center (Admin UI)**
+An enterprise-oriented dark interface with sticky sidebar, KPI cards, and real-time filtering. Accessible via the browser. Does not require direct access to the managed machines.
 
-Innehåller:
-- **Fleet-vy** — alla registrerade agenter med status (online/stale/offline/disabled), patchexponering, CVE-räkning, grupper och senaste incheckning. Sökbar i realtid.
-- **KPI-kort** — totalt antal agenter, antal med säkerhetsexponering, antal som kräver omstart, jobbkö-status
-- **Jobbvy** — alla körda och pågående jobb med output, exit-koder och tidsstämplar
-- **Grupper** — organisera maskiner i logiska grupper (t.ex. prod-servrar, staging)
-- **Scheman** — automatiserade patchfönster kopplade till maskin eller grupp, med dag, klockslag och tidszon
-- **Paketexponering** — alla rapporterade paket med tillgängliga uppgraderingar, CVE-flaggade markeras separat
-- **Auditlogg** — loggning av administrativa händelser och agentaktivitet
+Includes:
+- **Fleet view** — all registered agents with status (online/stale/offline/disabled), patch exposure, CVE count, groups, and last check-in. Real-time searchable.
+- **KPI cards** — total agent count, number with security exposure, number requiring reboot, job queue status
+- **Job view** — all completed and ongoing jobs with output, exit codes, and timestamps
+- **Groups** — organize machines into logical groups (e.g. prod servers, staging)
+- **Schedules** — automated patch windows linked to a machine or group, with day, time, and timezone
+- **Package exposure** — all reported packages with available upgrades, CVE-flagged ones marked separately
+- **Audit log** — logging of administrative events and agent activity
 
-**Agent-API**
-REST-API som agenter kommunicerar med. Separerat från admin-gränssnittet via host-baserad routing — en publik hostname för agenter, en intern för admin. Agenter autentiseras med bearer-token per maskin.
+**Agent API**
+REST API that agents communicate with. Separated from the admin interface via host-based routing — one public hostname for agents, one internal for admin. Agents authenticate with per-machine bearer tokens.
 
 Endpoints:
-- `POST /api/v1/agent/enroll` — registrera ny maskin
-- `POST /api/v1/agent/checkin` — rapportera status och hämta väntande jobb
-- `POST /api/v1/agent/jobs/{id}/started` — markera jobb som startat
-- `POST /api/v1/agent/jobs/{id}/result` — rapportera utfall
-- `GET  /api/v1/agent/latest` — agentens senaste version och SHA256
-- `GET  /agent/patchpilot-agent.py` — ladda ned agentfilen
-- `GET  /install.sh` — generat installationsskript med inbyggd SHA256-verifiering
+- `POST /api/v1/agent/enroll` — register new machine
+- `POST /api/v1/agent/checkin` — report status and fetch pending jobs
+- `POST /api/v1/agent/jobs/{id}/started` — mark job as started
+- `POST /api/v1/agent/jobs/{id}/result` — report outcome
+- `GET  /api/v1/agent/latest` — agent's latest version and SHA256
+- `GET  /agent/patchpilot-agent.py` — download the agent file
+- `GET  /install.sh` — generated install script with built-in SHA256 verification
 
-**Schemaläggare**
-En bakgrundsprocess kontrollerar varje minut om något schema ska aktiveras. Den skapar automatiskt jobb för rätt maskiner eller grupper baserat på dag, klockslag och tidszon. Stödjer godkännandekrav — jobbet köas men väntar på manuellt godkännande i UI:t innan det skickas till agenten.
+**Scheduler**
+A background process checks every minute whether any schedule should activate. It automatically creates jobs for the correct machines or groups based on day, time, and timezone. Supports approval requirements — the job is queued but waits for manual approval in the UI before being sent to the agent.
 
-**Godkännandeflöde för agenter**
-Nya agenter kan kräva manuellt godkännande innan de får utföra jobb. Administratören godkänner eller avvisar i UI:t. Kan stängas av för att automatgodkänna alla nya agenter.
+**Agent approval flow**
+New agents can require manual approval before they are allowed to execute jobs. The administrator approves or rejects in the UI. Can be disabled to auto-approve all new agents.
 
 ---
 
-### Säkerhet
+### Security
 
-**Autentisering**
-- Varje agent har ett unikt bearer-token (prefix `pp_agent_` + 32 slumpmässiga bytes, URL-safe base64). Tokenet lagras enbart som bcrypt-hash i databasen.
-- Admin-gränssnittet skyddas med HTTP Basic Auth via miljövariabeln `ADMIN_PASSWORD`.
+**Authentication**
+- Each agent has a unique bearer token (prefix `pp_agent_` + 32 random bytes, URL-safe base64). The token is stored only as a bcrypt hash in the database.
+- The admin interface is protected with HTTP Basic Auth via the `ADMIN_PASSWORD` environment variable.
 
-**CSRF-skydd**
-Alla POST-formulär i admin-gränssnittet innehåller ett CSRF-token som valideras server-side. Tokenet är HMAC-SHA256 av en hemlig nyckel + aktuell timme, giltigt i upp till två timmar. Injiceras automatiskt i alla formulär via JavaScript — ingen manuell hantering krävs av formulären.
+**CSRF protection**
+All POST forms in the admin interface include a CSRF token that is validated server-side. The token is HMAC-SHA256 of a secret key + current hour, valid for up to two hours. Automatically injected into all forms via JavaScript — no manual handling required in the forms.
 
-**XSS-skydd**
-Jinja2 HTML-escapar alla templatevariabler automatiskt. Bekräftelsedialoger (t.ex. "Ta bort agent?") använder `data-confirm`-attribut med en generisk text — inte dynamiska strängar inlagda i JavaScript-kod, vilket hade öppnat för XSS.
+**XSS protection**
+Jinja2 HTML-escapes all template variables automatically. Confirmation dialogs (e.g. "Delete agent?") use `data-confirm` attributes with a generic text — not dynamic strings embedded in JavaScript code, which would open up for XSS.
 
-**Host-baserad routing**
-Agenternas publika endpoint och admin-gränssnittet exponeras på olika hostnames. Om en request till admin-hostnamet träffar agent-API:et, eller vice versa, returneras 404. Det innebär att admin-gränssnittet aldrig behöver vara publikt tillgängligt.
+**Host-based routing**
+The agents' public endpoint and the admin interface are exposed on different hostnames. If a request to the admin hostname hits the agent API, or vice versa, a 404 is returned. This means the admin interface never needs to be publicly accessible.
 
 **Rate limiting**
-Enrollment-endpointen tillåter max 10 registreringar per IP-adress per timme. Skyddar mot automatiserade försök att registrera stora mängder falska agenter.
+The enrollment endpoint allows a maximum of 10 registrations per IP address per hour. Protects against automated attempts to register large numbers of fake agents.
 
-**Säker självuppdatering**
-Agenten verifierar SHA256-checksumman på nedladdad agentfil innan den ersätter sig själv. Tempfilen skrivs på samma filsystem som målfilen för att garantera atomisk namnändring — ingen risk för halvkorrupt agentfil vid strömavbrott.
+**Secure self-update**
+The agent verifies the SHA256 checksum of the downloaded agent file before replacing itself. The temp file is written on the same filesystem as the target file to guarantee atomic renaming — no risk of a half-corrupt agent file on power failure.
 
-**Paketvalidering**
-Servern accepterar max 500 paket per incheckning. Jobb-actions valideras mot en hårdkodad vitlista — servern kan aldrig köa ett godtyckligt shell-kommando.
+**Package validation**
+The server accepts a maximum of 500 packages per check-in. Job actions are validated against a hardcoded allowlist — the server can never queue an arbitrary shell command.
 
 ---
 
-## Teknikstack
+## Tech stack
 
-| Komponent | Teknologi |
+| Component | Technology |
 |---|---|
 | Server runtime | Python 3.11, FastAPI, Uvicorn |
-| Databas | PostgreSQL (produktion), SQLite (tester) |
+| Database | PostgreSQL (production), SQLite (tests) |
 | ORM | SQLAlchemy 2.0 |
 | Templates | Jinja2 |
-| Schemaläggare | APScheduler |
-| Autentisering | bcrypt via passlib, HMAC-SHA256 |
-| Agent | Python 3 stdlib only (inga externa beroenden) |
+| Scheduler | APScheduler |
+| Authentication | bcrypt via passlib, HMAC-SHA256 |
+| Agent | Python 3 stdlib only (no external dependencies) |
 | Reverse proxy | Caddy |
 | Container | Docker + Docker Compose |
-| Test | pytest, 64 tester (API, säkerhet, agentlogik) |
+| Tests | pytest, 64 tests (API, security, agent logic) |
 
 ---
 
-## Driftsättning
+## Deployment
 
 ```bash
 cp .env.example .env
-# Fyll i .env med ADMIN_PASSWORD, APP_SECRET, PUBLIC_AGENT_URL
+# Fill in .env with ADMIN_PASSWORD, APP_SECRET, PUBLIC_AGENT_URL
 docker compose up -d --build
 ```
 
-Admin-gränssnittet nås på `http://localhost:8080/admin`.
+The admin interface is available at `http://localhost:8080/admin`.
 
 ### Deploy
 
@@ -138,27 +138,27 @@ Admin-gränssnittet nås på `http://localhost:8080/admin`.
 ./deploy.sh
 ```
 
-Pushar lokala commits, pullar på servern och bygger om containern.
+Pushes local commits, pulls on the server, and rebuilds the container.
 
-### Agentinstallation på Ubuntu-maskin
+### Agent installation on Ubuntu machine
 
 ```bash
-curl -fsSL https://din-server/install.sh | sudo bash -s -- --server https://din-server
+curl -fsSL https://your-server/install.sh | sudo bash -s -- --server https://your-server
 ```
 
-Installationsskriptet verifierar agentfilens SHA256-hash mot servern innan det aktiverar den.
+The install script verifies the agent file's SHA256 hash against the server before activating it.
 
 ---
 
-## Säkerhetsarkitektur i korthet
+## Security architecture in brief
 
 ```
-Ubuntu-maskin                   Server (intern/Cloudflare Tunnel)
+Ubuntu machine                  Server (internal/Cloudflare Tunnel)
 ┌──────────────────┐            ┌──────────────────────────────────┐
-│ patchpilot-agent │ ──HTTPS──► │ /api/v1/agent/*  (publik)        │
-│ (systemd-tjänst) │ ◄──jobb─── │                                  │
-└──────────────────┘            │ /admin           (intern only)    │
+│ patchpilot-agent │ ──HTTPS──► │ /api/v1/agent/*  (public)        │
+│ (systemd service)│ ◄──jobs─── │                                  │
+└──────────────────┘            │ /admin           (internal only)  │
                                 └──────────────────────────────────┘
 ```
 
-Agenten initierar alltid kommunikationen. Inga inkommande anslutningar krävs till de hanterade maskinerna.
+The agent always initiates communication. No incoming connections are required to the managed machines.

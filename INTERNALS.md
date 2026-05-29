@@ -1,34 +1,34 @@
-# PatchPilot — Teknisk internaldokumentation
+# PatchPilot — Technical internal documentation
 
-Detaljerad genomgång av hur varje funktion fungerar och vad som används under ytan.
-
----
-
-## Innehåll
-
-1. [Systemarkitektur](#systemarkitektur)
-2. [Datamodell](#datamodell)
-3. [Agentfunktioner](#agentfunktioner)
-4. [Exakt vad som sker på Ubuntu-maskinen när ett jobb körs](#exakt-vad-som-sker-på-ubuntu-maskinen-när-ett-jobb-körs)
-5. [Server — autentisering och säkerhet](#server--autentisering-och-säkerhet)
-6. [Server — agent-API](#server--agent-api)
-7. [Server — admin-API](#server--admin-api)
-8. [Schemaläggaren](#schemaläggaren)
-9. [Notifieringar](#notifieringar)
-10. [Installationsskript](#installationsskript)
-11. [Testsvit](#testsvit)
+Detailed walkthrough of how each feature works and what is used under the hood.
 
 ---
 
-## Systemarkitektur
+## Table of contents
+
+1. [System architecture](#system-architecture)
+2. [Data model](#data-model)
+3. [Agent functions](#agent-functions)
+4. [Exactly what happens on the Ubuntu machine when a job runs](#exactly-what-happens-on-the-ubuntu-machine-when-a-job-runs)
+5. [Server — authentication and security](#server--authentication-and-security)
+6. [Server — agent API](#server--agent-api)
+7. [Server — admin API](#server--admin-api)
+8. [Scheduler](#scheduler)
+9. [Notifications](#notifications)
+10. [Install scripts](#install-scripts)
+11. [Test suite](#test-suite)
+
+---
+
+## System architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Ubuntu-maskin                                                  │
-│  /usr/local/bin/patchpilot-agent   (Python 3, inga deps)       │
-│  systemd-timer → var 5:e minut                                  │
+│  Ubuntu machine                                                 │
+│  /usr/local/bin/patchpilot-agent   (Python 3, no deps)         │
+│  systemd-timer → every 5 minutes                                │
 └────────────────────┬────────────────────────────────────────────┘
-                     │ HTTPS  (bearer-token)
+                     │ HTTPS  (bearer token)
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Server  (Docker)                                               │
@@ -40,42 +40,42 @@ Detaljerad genomgång av hur varje funktion fungerar och vad som används under 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Caddy lyssnar på port 80/443 och vidarebefordrar till FastAPI på port 8000. FastAPI hanterar både agentens REST-API och admin-webbgränssnittet i samma process. Databasen nås uteslutande via SQLAlchemy ORM — inga råa SQL-strängar används i applikationskoden.
+Caddy listens on port 80/443 and forwards to FastAPI on port 8000. FastAPI handles both the agent REST API and the admin web interface in the same process. The database is accessed exclusively via SQLAlchemy ORM — no raw SQL strings are used in application code.
 
 ---
 
-## Datamodell
+## Data model
 
-Sex tabeller, definierade i `backend/app/models.py` med SQLAlchemy 2.0:s `Mapped`-syntax (typad ORM):
+Six tables, defined in `backend/app/models.py` using SQLAlchemy 2.0's `Mapped` syntax (typed ORM):
 
 ### `machines`
-En rad per registrerad agent. Lagrar identitet (`machine_id`, `hostname`), autentisering (`token_hash`), systeminfo (`os_version`, `kernel_version`, `agent_version`), patchstatus (`updates_available`, `security_updates_available`, `reboot_required`), beteendeflags (`auto_patch`, `auto_reboot`), livscykelstatus (`active`, `approved`, `approval_status`) och tidsstämplar (`first_seen`, `last_seen`, `last_job_at`, `last_success_at`).
+One row per registered agent. Stores identity (`machine_id`, `hostname`), authentication (`token_hash`), system info (`os_version`, `kernel_version`, `agent_version`), patch status (`updates_available`, `security_updates_available`, `reboot_required`), behavior flags (`auto_patch`, `auto_reboot`), lifecycle status (`active`, `approved`, `approval_status`), and timestamps (`first_seen`, `last_seen`, `last_job_at`, `last_success_at`).
 
-**Viktigt**: `token_hash` innehåller aldrig klartext-tokenet — bara en bcrypt-hash. Klartext-tokenet existerar enbart i svaret från enrollment-anropet och i agentens konfigurationsfil.
+**Important**: `token_hash` never contains the plaintext token — only a bcrypt hash. The plaintext token exists only in the enrollment response and in the agent's config file.
 
 ### `jobs`
-En rad per jobb. Kopplas till en maskin via `machine_id` (foreign key). Innehåller `action` (t.ex. `upgrade`), `status` (`pending` → `running` → `success`/`failed`), `allow_reboot`-flag, `output` (max 30 000 tecken), `exit_code` och tre tidsstämplar (`created_at`, `started_at`, `finished_at`).
+One row per job. Linked to a machine via `machine_id` (foreign key). Contains `action` (e.g. `upgrade`), `status` (`pending` → `running` → `success`/`failed`), `allow_reboot` flag, `output` (max 30,000 characters), `exit_code`, and three timestamps (`created_at`, `started_at`, `finished_at`).
 
 ### `groups`
-Namngivna grupper med `name` (unik) och `description`. Kopplas till maskiner via `machine_groups`.
+Named groups with `name` (unique) and `description`. Linked to machines via `machine_groups`.
 
 ### `machine_groups`
-Bryggtabell (`machine_id`, `group_id`) med unik-constraint på kombinationen — en maskin kan vara med i samma grupp bara en gång.
+Bridge table (`machine_id`, `group_id`) with a unique constraint on the combination — a machine can only be in the same group once.
 
 ### `package_updates`
-En rad per paket-per-maskin. Uppdateras helt vid varje incheckning — alla gamla rader för maskinen raderas och de nya skrivs in (`UPSERT`-beteende via delete+insert). Unik-constraint på `(machine_id, package)`. Lagrar `current_version`, `candidate_version` och `security`-flag.
+One row per package per machine. Fully replaced on every check-in — all old rows for the machine are deleted and new ones written in (UPSERT behavior via delete+insert). Unique constraint on `(machine_id, package)`. Stores `current_version`, `candidate_version`, and `security` flag.
 
 ### `audit_logs`
-Oföränderlig logg. En rad per administrativ händelse. Innehåller `actor` (t.ex. `admin` eller `agent`), `action` (t.ex. `job_created`, `machine_approved`), `target_type`/`target_id`, `ip_address` och fritext `details`.
+Immutable log. One row per administrative event. Contains `actor` (e.g. `admin` or `agent`), `action` (e.g. `job_created`, `machine_approved`), `target_type`/`target_id`, `ip_address`, and free-text `details`.
 
 ### `schedules`
-Konfiguration för återkommande jobb. Innehåller målspecifikation (`target_type`: `machine` eller `group`, `target_id`), timing (`day_of_week`, `time_of_day`, `timezone`), `action`, samt flags (`allow_reboot`, `require_approval`, `enabled`). `last_run_key` är en dedupliceringsträng på formatet `schedule_id:YYYY-MM-DD` som förhindrar att samma schema körs mer än en gång per dag.
+Configuration for recurring jobs. Contains target specification (`target_type`: `machine` or `group`, `target_id`), timing (`day_of_week`, `time_of_day`, `timezone`), `action`, and flags (`allow_reboot`, `require_approval`, `enabled`). `last_run_key` is a deduplication string in the format `schedule_id:YYYY-MM-DD` that prevents the same schedule from running more than once per day.
 
 ---
 
-## Agentfunktioner
+## Agent functions
 
-Agenten (`agent/patchpilot-agent.py`) är ett enda Python-skript utan externa beroenden — enbart standardbiblioteket. Det gör det möjligt att köra det på Ubuntu utan `pip install`.
+The agent (`agent/patchpilot-agent.py`) is a single Python script with no external dependencies — only the standard library. This makes it possible to run on Ubuntu without `pip install`.
 
 ### `get_machine_id()`
 
@@ -83,135 +83,135 @@ Agenten (`agent/patchpilot-agent.py`) är ett enda Python-skript utan externa be
 /etc/patchpilot/machine-id
 ```
 
-Läser filen om den finns. Annars genereras ett ID på formatet `hostname-xxxxxxxxxxxx` där sufixet är 12 hex-tecken från `uuid.uuid4()`. ID:t skrivs till filen med `chmod 600`. Filen är persistent — ID:t ändras inte om agenten ominstalleras, så länge filen finns kvar.
+Reads the file if it exists. Otherwise generates an ID in the format `hostname-xxxxxxxxxxxx` where the suffix is 12 hex characters from `uuid.uuid4()`. The ID is written to the file with `chmod 600`. The file is persistent — the ID does not change if the agent is reinstalled, as long as the file remains.
 
 ### `run(cmd)`
 
-Kör ett shell-kommando via `subprocess.run(..., shell=True)`. Sätter `DEBIAN_FRONTEND=noninteractive` och `NEEDRESTART_MODE=a` i miljön så att APT aldrig frågar interaktivt. Timeout är 1800 sekunder som standard (30 minuter). Returnerar `(returncode, stdout+stderr)`.
+Runs a shell command via `subprocess.run(..., shell=True)`. Sets `DEBIAN_FRONTEND=noninteractive` and `NEEDRESTART_MODE=a` in the environment so that APT never prompts interactively. Timeout is 1800 seconds by default (30 minutes). Returns `(returncode, stdout+stderr)`.
 
 ### `parse_apt_updates()`
 
-Kör `apt list --upgradable 2>/dev/null | tail -n +2` och parsar varje rad med regex. En typisk rad ser ut så:
+Runs `apt list --upgradable 2>/dev/null | tail -n +2` and parses each line with regex. A typical line looks like:
 
 ```
 vim/jammy 9.1.0-1ubuntu1 amd64 [upgradable from: 9.0.0-1]
 ```
 
-Parsning:
-- **Paketnamn**: Allt före första `/`
-- **Kandidatversion**: `parts[1]` (andrakolumnen)
-- **Nuvarande version**: Regex `\[upgradable from:\s*([^\]]+)\]`
-- **CVE-flag**: Söker efter strängen `security` i raden (t.ex. `jammy-security` i källnamnet)
+Parsing:
+- **Package name**: Everything before the first `/`
+- **Candidate version**: `parts[1]` (second column)
+- **Current version**: Regex `\[upgradable from:\s*([^\]]+)\]`
+- **CVE flag**: Searches for the string `security` in the line (e.g. `jammy-security` in the source name)
 
 ### `apt_check_counts(packages)`
 
-Försöker använda `/usr/lib/update-notifier/apt-check` (finns på de flesta Ubuntu-installationer) för exaktare räkning. Parsar output med regex `(\d+)\s*;\s*(\d+)`. Faller tillbaka till att räkna `packages`-listan om verktyget saknas.
+Tries to use `/usr/lib/update-notifier/apt-check` (present on most Ubuntu installations) for more accurate counting. Parses output with regex `(\d+)\s*;\s*(\d+)`. Falls back to counting the `packages` list if the tool is missing.
 
 ### `collect_status()`
 
-Kör `apt-get update` (synkroniserar paketlistor), anropar sedan `parse_apt_updates()` och `apt_check_counts()`. Kontrollerar `/var/run/reboot-required` — filen skapas av APT efter en uppdatering som kräver omstart. Läser `/etc/os-release` för OS-version och `platform.release()` för kernelversion.
+Runs `apt-get update` (syncs package lists), then calls `parse_apt_updates()` and `apt_check_counts()`. Checks `/var/run/reboot-required` — this file is created by APT after an update that requires a reboot. Reads `/etc/os-release` for the OS version and `platform.release()` for the kernel version.
 
 ### `enroll(server_url)`
 
-Anropar `POST /api/v1/agent/enroll` med maskin-ID, hostname, agentversion, OS-version och kernelversion. Om servern svarar med `"message": "machine already enrolled"` skriver agenten ett informationsmeddelande och avslutar med exit code 0 (inte ett fel). Om svaret innehåller `agent_token` skrivs det till `/etc/patchpilot/agent.json` med `chmod 600`.
+Calls `POST /api/v1/agent/enroll` with machine ID, hostname, agent version, OS version, and kernel version. If the server responds with `"message": "machine already enrolled"`, the agent prints an informational message and exits with exit code 0 (not an error). If the response contains `agent_token`, it is written to `/etc/patchpilot/agent.json` with `chmod 600`.
 
 ### `bootstrap_if_needed()`
 
-Kontrollerar om `/etc/patchpilot/agent.json` finns. Om inte, läser den `/etc/patchpilot/bootstrap.json` (sätts av template-installationsskriptet) och kör enrollment automatiskt. Används för VM-template-flödet där enrollment inte sker vid installation utan vid första start av den klonade VM:n.
+Checks if `/etc/patchpilot/agent.json` exists. If not, reads `/etc/patchpilot/bootstrap.json` (set by the template install script) and runs enrollment automatically. Used for the VM template flow where enrollment does not happen at installation time but at first start of the cloned VM.
 
 ### `self_update_agent(update_url, expected_sha256)`
 
-1. Laddar ned den nya agentfilen från `update_url` via `urllib.request`
-2. Kontrollerar att filen börjar med `#!/usr/bin/env python3` (sanity-check)
-3. Beräknar `sha256sum` av det nedladdade innehållet
-4. Jämför med `expected_sha256` om det angetts — avbryter vid mismatch
-5. Skriver till en temporärfil i **samma katalog** som den befintliga agentfilen (`/usr/local/bin/`) med `tempfile.NamedTemporaryFile(dir=current_path.parent)`
-6. Sätter `chmod 755` på tempfilen
-7. Skapar backup i `/usr/local/bin/patchpilot-agent.bak-{version}`
-8. Anropar `tmp_path.replace(current_path)` — detta är en **atomisk `rename()`** på Linux, aldrig en partiell fil
+1. Downloads the new agent file from `update_url` via `urllib.request`
+2. Checks that the file starts with `#!/usr/bin/env python3` (sanity check)
+3. Computes `sha256sum` of the downloaded content
+4. Compares with `expected_sha256` if provided — aborts on mismatch
+5. Writes to a temp file in the **same directory** as the existing agent file (`/usr/local/bin/`) using `tempfile.NamedTemporaryFile(dir=current_path.parent)`
+6. Sets `chmod 755` on the temp file
+7. Creates a backup at `/usr/local/bin/patchpilot-agent.bak-{version}`
+8. Calls `tmp_path.replace(current_path)` — this is an **atomic `rename()`** on Linux, never a partial file
 
-Anledningen till att tempfilen måste ligga i samma katalog (inte `/tmp`): `rename()` är bara atomisk inom samma filsystem. Om tempfilen är på `/tmp` och målet är på `/usr/local/bin` (vilket kan vara ett annat filsystem) faller operativsystemet tillbaka till copy+delete, vilket inte är atomiskt.
+The reason the temp file must be in the same directory (not `/tmp`): `rename()` is only atomic within the same filesystem. If the temp file is on `/tmp` and the target is on `/usr/local/bin` (which may be a different filesystem), the OS falls back to copy+delete, which is not atomic.
 
 ### `execute_job(job)`
 
-Validerar `action` mot `ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot", "security_upgrade", "self_update", "upgrade"}` — ett jobbsvar från servern med en okänd action ignoreras med felkod. Kör sedan rätt kommando baserat på action. `reboot` och `upgrade` respekterar `allow_reboot`-flaggan.
+Validates `action` against `ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot", "security_upgrade", "self_update", "upgrade"}` — a job response from the server with an unknown action is ignored with an error code. Then runs the correct command based on the action. `reboot` and `upgrade` respect the `allow_reboot` flag.
 
 ### `run_once()`
 
-Huvudflödet vid varje körning:
-1. Läs konfiguration (eller bootstrap vid behov)
-2. Samla status (`collect_status`)
-3. Checka in mot servern (`POST /api/v1/agent/checkin`)
-4. Om servern rapporterar att agenten är `pending_approval` — avsluta utan att köra jobb
-5. Kontrollera om agenten är utdaterad (`agent_update.outdated`) och om `auto_agent_update` är aktiverat — uppdatera i så fall sig själv och avsluta
-6. Iterera över `jobs` i svaret (max 3 per incheckning)
-7. Markera varje jobb som startat, kör det, rapportera resultatet
+The main flow on each run:
+1. Read configuration (or bootstrap if needed)
+2. Collect status (`collect_status`)
+3. Check in with the server (`POST /api/v1/agent/checkin`)
+4. If the server reports the agent is `pending_approval` — exit without running jobs
+5. Check if the agent is outdated (`agent_update.outdated`) and if `auto_agent_update` is enabled — if so, update itself and exit
+6. Iterate over `jobs` in the response (max 3 per check-in)
+7. Mark each job as started, run it, report the result
 
-Vid undantag skickas felmeddelandet med vid nästa incheckning som `last_error`.
+On exception, the error message is sent with the next check-in as `last_error`.
 
 ---
 
-## Exakt vad som sker på Ubuntu-maskinen när ett jobb körs
+## Exactly what happens on the Ubuntu machine when a job runs
 
-### Flöde från timer-tick till jobbresultat
+### Flow from timer tick to job result
 
 ```
-systemd-timer (var 5:e minut)
+systemd-timer (every 5 minutes)
   │
   └─► patchpilot-agent --once
         │
         ├─ 1. collect_status()          ← apt-get update + apt list
-        ├─ 2. POST /api/v1/agent/checkin  ← skickar status, tar emot jobb
-        ├─ 3. POST /jobs/{id}/started   ← berättar att jobbet börjar
-        ├─ 4. execute_job()             ← kör rätt Linux-kommando
-        └─ 5. POST /jobs/{id}/result    ← skickar exit-kod + output
+        ├─ 2. POST /api/v1/agent/checkin  ← sends status, receives jobs
+        ├─ 3. POST /jobs/{id}/started   ← notifies that the job is starting
+        ├─ 4. execute_job()             ← runs the correct Linux command
+        └─ 5. POST /jobs/{id}/result    ← sends exit code + output
 ```
 
-### Steg 1 — collect_status(): vad APT-kommandona gör
+### Step 1 — collect_status(): what the APT commands do
 
-Varje incheckning börjar med att agenten samlar systemstatus. Tre systemanrop körs i sekvens:
+Each check-in begins with the agent collecting system status. Three system calls are run in sequence:
 
 **`apt-get update`**
-Synkroniserar paketlistorna mot Ubuntu:s repon (eller lokalt mirror). Skriver till `/var/lib/apt/lists/`. Kräver root. Timeout: 15 minuter.
+Syncs the package lists against Ubuntu's repos (or a local mirror). Writes to `/var/lib/apt/lists/`. Requires root. Timeout: 15 minutes.
 
 ```bash
 apt-get update
 ```
 
 **`apt list --upgradable 2>/dev/null | tail -n +2`**
-Listar alla paket med tillgängliga uppgraderingar. `tail -n +2` tar bort rubrikraden ("Listing..."). Output-formatet är:
+Lists all packages with available upgrades. `tail -n +2` removes the header line ("Listing..."). The output format is:
 
 ```
 vim/jammy 9.1.0-1ubuntu1 amd64 [upgradable from: 9.0.0-1]
 openssl/jammy-security 3.0.2-0ubuntu1.12 amd64 [upgradable from: 3.0.2-0ubuntu1.10]
 ```
 
-Agenten parsar varje rad med regex och märker ett paket som CVE-relaterat om källnamnet innehåller `security` (t.ex. `jammy-security`).
+The agent parses each line with regex and marks a package as CVE-related if the source name contains `security` (e.g. `jammy-security`).
 
-**`/usr/lib/update-notifier/apt-check`** *(om filen finns)*
-Ubuntu-verktyg som ger exaktare räkning av totala och säkerhetsrelaterade uppdateringar. Finns på de flesta Ubuntu-installationer. Output-format: `42;5` (42 totalt, 5 säkerhetsrelaterade).
+**`/usr/lib/update-notifier/apt-check`** *(if the file exists)*
+Ubuntu tool that gives more accurate counts of total and security-related updates. Present on most Ubuntu installations. Output format: `42;5` (42 total, 5 security-related).
 
-**Kontroll av `/var/run/reboot-required`**
-APT skapar den här filen automatiskt när ett installerat paket kräver omstart för att aktiveras (t.ex. ny kernel, nytt glibc). Agenten rapporterar `"reboot_required": true` om filen existerar.
+**Check for `/var/run/reboot-required`**
+APT creates this file automatically when an installed package requires a reboot to be activated (e.g. new kernel, new glibc). The agent reports `"reboot_required": true` if the file exists.
 
-**Läser `/etc/os-release`**
-Standardfil på alla moderna Linux-distributioner. Agenten läser `PRETTY_NAME`-raden, t.ex. `Ubuntu 22.04.3 LTS`.
+**Reads `/etc/os-release`**
+Standard file on all modern Linux distributions. The agent reads the `PRETTY_NAME` line, e.g. `Ubuntu 22.04.3 LTS`.
 
 **`platform.release()`**
-Python-stdlib-anrop som kör `uname -r` internt och returnerar kernelversionen, t.ex. `5.15.0-91-generic`.
+Python stdlib call that runs `uname -r` internally and returns the kernel version, e.g. `5.15.0-91-generic`.
 
 ---
 
-### Steg 4 — execute_job(): Linux-kommandon per jobbtyp
+### Step 4 — execute_job(): Linux commands per job type
 
 #### `check_updates`
 
-Kör hela `collect_status()` igen (uppdaterar paketlistorna och räknar om). Returnerar all status som JSON. Inget installeras, inget ändras på systemet.
+Runs the full `collect_status()` again (updates package lists and recounts). Returns all status as JSON. Nothing is installed, nothing changes on the system.
 
 ```bash
 apt-get update
 apt list --upgradable 2>/dev/null
-/usr/lib/update-notifier/apt-check   # om det finns
+/usr/lib/update-notifier/apt-check   # if present
 ```
 
 ---
@@ -222,13 +222,13 @@ apt list --upgradable 2>/dev/null
 apt-get update && apt-get upgrade -y
 ```
 
-- `apt-get upgrade -y` uppgraderar alla paket som har en nyare version tillgänglig, **utan** att ta bort befintliga paket eller installera nya (för det krävs `dist-upgrade`/`full-upgrade`).
-- `-y` svarar automatiskt ja på alla frågor.
-- `DEBIAN_FRONTEND=noninteractive` sätts i miljön — förhindrar interaktiva dialoger (t.ex. om `/etc/ssh/sshd_config` ska skrivas över av ett paketuppdatering).
-- `NEEDRESTART_MODE=a` sätts i miljön — gör att `needrestart` (ett Ubuntu-verktyg som frågar om tjänster ska startas om) kör automatiskt utan att fråga.
-- Om `allow_reboot=true` och `/var/run/reboot-required` finns efter uppgraderingen körs `systemctl reboot`.
+- `apt-get upgrade -y` upgrades all packages that have a newer version available, **without** removing existing packages or installing new ones (that requires `dist-upgrade`/`full-upgrade`).
+- `-y` automatically answers yes to all questions.
+- `DEBIAN_FRONTEND=noninteractive` is set in the environment — prevents interactive dialogs (e.g. whether `/etc/ssh/sshd_config` should be overwritten by a package update).
+- `NEEDRESTART_MODE=a` is set in the environment — makes `needrestart` (an Ubuntu tool that asks whether services should be restarted) run automatically without prompting.
+- If `allow_reboot=true` and `/var/run/reboot-required` exists after the upgrade, `systemctl reboot` is run.
 
-Timeout: 2 timmar.
+Timeout: 2 hours.
 
 ---
 
@@ -238,13 +238,13 @@ Timeout: 2 timmar.
 apt-get update && unattended-upgrade -d
 ```
 
-- `unattended-upgrade` är Ubuntu:s inbyggda verktyg för automatiska säkerhetsuppdateringar. Det läser `/etc/apt/apt.conf.d/50unattended-upgrades` för att avgöra vilka paket som är godkända.
-- Som standard uppgraderar det enbart paket från `Ubuntu:jammy-security` och `UbuntuESM:jammy-infra-security`.
-- `-d` (debug) skriver detaljerad output som agenten fångar och rapporterar tillbaka.
-- Uppgraderar **inte** icke-säkerhetspaket — t.ex. får vim en ny version via `upgrade` men inte via `security_upgrade` om det inte är en CVE-fix.
-- Om `allow_reboot=true` och omstart krävs körs `systemctl reboot`.
+- `unattended-upgrade` is Ubuntu's built-in tool for automatic security updates. It reads `/etc/apt/apt.conf.d/50unattended-upgrades` to determine which packages are approved.
+- By default it only upgrades packages from `Ubuntu:jammy-security` and `UbuntuESM:jammy-infra-security`.
+- `-d` (debug) writes detailed output that the agent captures and reports back.
+- Does **not** upgrade non-security packages — e.g. vim gets a new version via `upgrade` but not via `security_upgrade` unless it is a CVE fix.
+- If `allow_reboot=true` and a reboot is required, `systemctl reboot` is run.
 
-Timeout: 2 timmar.
+Timeout: 2 hours.
 
 ---
 
@@ -254,8 +254,8 @@ Timeout: 2 timmar.
 apt-get autoremove -y && apt-get autoclean -y
 ```
 
-- `autoremove` tar bort paket som installerades automatiskt som beroenden men inte längre behövs av något installerat paket.
-- `autoclean` tar bort paketfiler (`.deb`) från APT:s lokala cache (`/var/cache/apt/archives/`) för paket som inte längre finns i repona eller har ersatts av nyare versioner. Rör inte den fungerande installationen.
+- `autoremove` removes packages that were installed automatically as dependencies but are no longer needed by any installed package.
+- `autoclean` removes package files (`.deb`) from APT's local cache (`/var/cache/apt/archives/`) for packages that no longer exist in the repos or have been replaced by newer versions. Does not touch the working installation.
 
 ---
 
@@ -265,106 +265,106 @@ apt-get autoremove -y && apt-get autoclean -y
 systemctl reboot
 ```
 
-- Körs enbart om `allow_reboot=true` i jobbet — annars returneras exit code 1 med meddelandet `"Reboot refused because allow_reboot is false"`.
-- `systemctl reboot` begär omstart av init-systemet (systemd). Det är en kontrollerad omstart — `systemd` stänger ner tjänster i rätt ordning.
-- Agenten hinner inte rapportera något meningsfullt resultat efter att omstarten startat. Servern markerar jobbet som `success` ändå om exit-koden är 0 från `systemctl reboot`-anropet (vilket den är innan maskinen stänger ned).
+- Only runs if `allow_reboot=true` in the job — otherwise exit code 1 is returned with the message `"Reboot refused because allow_reboot is false"`.
+- `systemctl reboot` requests a reboot from the init system (systemd). It is a controlled reboot — `systemd` shuts down services in the correct order.
+- The agent does not have time to report any meaningful result after the reboot has started. The server marks the job as `success` anyway if the exit code from the `systemctl reboot` call is 0 (which it is before the machine shuts down).
 
 ---
 
 #### `self_update`
 
-Se [self_update_agent()](#self_update_agent) i Agentfunktioner-sektionen för full genomgång. I korthet:
+See [self_update_agent()](#self_update_agentupdate_url-expected_sha256) in the Agent functions section for a full walkthrough. In brief:
 
 ```
-1. curl-ekvivalent mot /agent/patchpilot-agent.py   (urllib, inga externa deps)
-2. SHA256-verifiering mot serverns manifest
-3. Skriv tempfil i /usr/local/bin/   (samma filsystem som målet)
-4. chmod 755 tempfil
+1. curl-equivalent against /agent/patchpilot-agent.py   (urllib, no external deps)
+2. SHA256 verification against the server's manifest
+3. Write temp file in /usr/local/bin/   (same filesystem as the target)
+4. chmod 755 temp file
 5. Backup: /usr/local/bin/patchpilot-agent.bak-{version}
-6. rename(tempfil → /usr/local/bin/patchpilot-agent)   ← atomisk
+6. rename(temp file → /usr/local/bin/patchpilot-agent)   ← atomic
 ```
 
-Linux-systemanropen som faktiskt körs:
-- `open()` + `write()` — skriver tempfilen
-- `chmod()` — sätter exekveringsrättigheter
-- `rename()` — atomisk filbytning (en enda systemcall, aldrig partiell)
+Linux system calls that are actually made:
+- `open()` + `write()` — writes the temp file
+- `chmod()` — sets execute permissions
+- `rename()` — atomic file swap (a single syscall, never partial)
 
 ---
 
-### Miljövariabler som sätts för alla APT-kommandon
+### Environment variables set for all APT commands
 
-| Variabel | Värde | Varför |
+| Variable | Value | Why |
 |---|---|---|
-| `DEBIAN_FRONTEND` | `noninteractive` | Förhindrar att APT öppnar interaktiva dialoger (debconf) |
-| `NEEDRESTART_MODE` | `a` | Gör att `needrestart` automatiskt startar om tjänster utan att fråga |
+| `DEBIAN_FRONTEND` | `noninteractive` | Prevents APT from opening interactive dialogs (debconf) |
+| `NEEDRESTART_MODE` | `a` | Makes `needrestart` automatically restart services without prompting |
 
-Utan `DEBIAN_FRONTEND=noninteractive` kan t.ex. en uppgradering av `openssh-server` fastna och vänta på svar om konfigurationsfilen ska behållas eller skrivas över — för alltid, tills timeout.
+Without `DEBIAN_FRONTEND=noninteractive`, an upgrade of e.g. `openssh-server` can hang waiting for an answer about whether the config file should be kept or overwritten — forever, until timeout.
 
 ---
 
-### Säkerhetsgräns: vad agenten INTE kan göra
+### Security boundary: what the agent CANNOT do
 
-Agenten validerar alltid `action` mot:
+The agent always validates `action` against:
 
 ```python
 ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot",
                    "security_upgrade", "self_update", "upgrade"}
 ```
 
-Om servern (eller någon annan) skickar ett jobb med `action = "rm -rf /"` eller vilket annat kommando som helst som inte finns i listan returneras omedelbart:
+If the server (or anyone else) sends a job with `action = "rm -rf /"` or any other command not in the list, the agent immediately returns:
 
 ```
 exit_code=1, output="Refused invalid action: rm -rf /"
 ```
 
-Kommandot körs aldrig. Det finns ingen eval, ingen exec av serversvar, inga dynamiska kommandon.
+The command is never executed. There is no eval, no exec of server responses, no dynamic commands.
 
 ---
 
-## Server — autentisering och säkerhet
+## Server — authentication and security
 
-Definierat i `backend/app/security.py` och `backend/app/main.py`.
+Defined in `backend/app/security.py` and `backend/app/main.py`.
 
-### Agenttoken
+### Agent token
 
 ```python
 def new_token(prefix: str) -> str:
     return f"{prefix}_{secrets.token_urlsafe(32)}"
 ```
 
-Genererar ett token med 32 bytes slumpentropi (256 bit), URL-safe base64-kodat. Resulterar i strängar som `pp_agent_xK3mN...` (ca 46 tecken). `secrets.token_urlsafe` använder operativsystemets CSPRNG (`os.urandom`).
+Generates a token with 32 bytes of random entropy (256 bit), URL-safe base64-encoded. Results in strings like `pp_agent_xK3mN...` (~46 characters). `secrets.token_urlsafe` uses the OS's CSPRNG (`os.urandom`).
 
 ```python
 def hash_token(token: str) -> str:
-    return pwd_context.hash(token)   # bcrypt, kostnadsfaktor 12
+    return pwd_context.hash(token)   # bcrypt, cost factor 12
 
 def verify_token(token: str, token_hash: str) -> bool:
     return pwd_context.verify(token, token_hash)
 ```
 
-bcrypt lagrar saltet inbäddat i hashsträngen. `verify` är tidskonstant för att förhindra timing-attacker.
+bcrypt stores the salt embedded in the hash string. `verify` is constant-time to prevent timing attacks.
 
-### CSRF-skydd
+### CSRF protection
 
 ```python
 def make_csrf_token() -> str:
     secret = os.getenv("APP_SECRET")
-    hour = str(int(time.time()) // 3600)   # aktuell timme som sträng
+    hour = str(int(time.time()) // 3600)   # current hour as string
     return hmac.new(secret.encode(), hour.encode(), hashlib.sha256).hexdigest()[:32]
 ```
 
-Tokenet är deterministiskt inom samma timme. Det gör att sidan kan laddas om utan att CSRF-token ogiltigförklaras.
+The token is deterministic within the same hour. This means the page can be reloaded without the CSRF token being invalidated.
 
 ```python
 def verify_csrf_token(token: str) -> bool:
-    for offset in (0, 1):   # accepterar innevarande och föregående timme
+    for offset in (0, 1):   # accepts current and previous hour
         expected = hmac.new(secret, (current_hour - offset), sha256)[:32]
         if hmac.compare_digest(token, expected):
             return True
     return False
 ```
 
-`hmac.compare_digest` är tidskonstant — förhindrar timing-baserade gissningsattacker. Tokens är giltiga i upp till 2 timmar, vilket täcker edge-caset att en sida laddas 59 minuter in i en timme och formuläret skickas in 1 minut senare.
+`hmac.compare_digest` is constant-time — prevents timing-based guessing attacks. Tokens are valid for up to 2 hours, which covers the edge case of a page being loaded 59 minutes into an hour and the form being submitted 1 minute later.
 
 ### Admin HTTP Basic Auth
 
@@ -380,9 +380,9 @@ async def admin_auth_middleware(request: Request, call_next):
             headers={"WWW-Authenticate": 'Basic realm="PatchPilot Admin"'})
 ```
 
-Aktiveras bara om `ADMIN_PASSWORD` är satt. Lösenordet jämförs med `hmac.compare_digest` — tidskonstant. Middleware körs **före** routrar, vilket innebär att autentiseringen aldrig kan kringgås av routing-logik.
+Only activated if `ADMIN_PASSWORD` is set. The password is compared with `hmac.compare_digest` — constant-time. Middleware runs **before** routers, meaning authentication can never be bypassed by routing logic.
 
-### Host-baserad routing
+### Host-based routing
 
 ```python
 @app.middleware("http")
@@ -399,9 +399,9 @@ async def host_path_guard(request: Request, call_next):
             return Response(status_code=404)
 ```
 
-Agentens publika hostname kan inte nå `/admin`. Admins interna hostname kan inte nå agent-API:et. Det innebär att även om admin-gränssnittet exponeras av misstag offentligt, kan ingen använda det som agentproxy.
+The agent's public hostname cannot reach `/admin`. The admin's internal hostname cannot reach the agent API. This means that even if the admin interface is accidentally exposed publicly, no one can use it as an agent proxy.
 
-### Rate limiting för enrollment
+### Rate limiting for enrollment
 
 ```python
 _enroll_timestamps: dict[str, list[float]] = defaultdict(list)
@@ -416,9 +416,9 @@ def _check_enroll_rate(ip: str) -> bool:
     return True
 ```
 
-In-memory sliding window. Rensar automatiskt gamla timestamps vid varje kontroll. Nollställs vid serveromstart. Max 10 enrollments per IP per timme.
+In-memory sliding window. Automatically clears old timestamps on each check. Resets on server restart. Max 10 enrollments per IP per hour.
 
-### Agentautentisering
+### Agent authentication
 
 ```python
 def get_agent(db, x_agent_id, authorization):
@@ -431,41 +431,41 @@ def get_agent(db, x_agent_id, authorization):
     return machine
 ```
 
-Varje agent-request kräver två headers: `X-Agent-ID` (maskin-ID) och `Authorization: Bearer <token>`. Maskinen slås upp med `machine_id`, och sedan verifieras tokenet mot den lagrade bcrypt-hashen. En agent kan inte komma åt en annan agents jobb — `Job.machine_id` kontrolleras alltid.
+Every agent request requires two headers: `X-Agent-ID` (machine ID) and `Authorization: Bearer <token>`. The machine is looked up by `machine_id`, and then the token is verified against the stored bcrypt hash. An agent cannot access another agent's jobs — `Job.machine_id` is always checked.
 
 ---
 
-## Server — agent-API
+## Server — agent API
 
 ### `POST /api/v1/agent/enroll`
 
-1. Validerar att `machine_id` och `hostname` finns i payload (400 om de saknas)
-2. Kontrollerar rate limit för klientens IP (429 om för många försök)
-3. Kontrollerar om maskinen redan är registrerad:
-   - Om maskinen är inaktiv/avslagen — returnerar 403
-   - Om maskinen finns — returnerar `"message": "machine already enrolled"` utan nytt token
-4. Genererar nytt token, skapar maskinpost i databasen
-5. `PATCHPILOT_AUTO_APPROVE_AGENTS`-miljövariabeln styr om maskinen godkänns direkt eller hamnar i `pending_approval`
-6. Skriver till auditloggen och skickar Discord-notifiering
-7. Returnerar `agent_token` i klartext — **den enda gången tokenet syns**
+1. Validates that `machine_id` and `hostname` are present in the payload (400 if missing)
+2. Checks rate limit for the client's IP (429 if too many attempts)
+3. Checks if the machine is already registered:
+   - If the machine is inactive/disabled — returns 403
+   - If the machine exists — returns `"message": "machine already enrolled"` without a new token
+4. Generates a new token, creates the machine record in the database
+5. The `PATCHPILOT_AUTO_APPROVE_AGENTS` environment variable controls whether the machine is approved immediately or placed in `pending_approval`
+6. Writes to the audit log and sends a Discord notification
+7. Returns `agent_token` in plaintext — **the only time the token is visible**
 
 ### `POST /api/v1/agent/checkin`
 
-1. Autentiserar agenten (se `get_agent` ovan)
-2. Uppdaterar maskinens statusfält i databasen
-3. Hanterar paketlistan: raderar alla gamla `PackageUpdate`-rader för maskinen, skriver in nya (max 500 paket)
-4. Hämtar latest agent-info (version och SHA256 från den serverade filen)
-5. Om maskinen inte är godkänd — returnerar `pending_approval` med tomma `jobs`
-6. Hämtar upp till 3 `pending`-jobb, sorterade efter `created_at`
-7. Returnerar jobblistea, policy-flags (`auto_patch`, `auto_reboot`, `auto_agent_update`) och agentuppdateringsinformation
+1. Authenticates the agent (see `get_agent` above)
+2. Updates the machine's status fields in the database
+3. Handles the package list: deletes all old `PackageUpdate` rows for the machine, writes in new ones (max 500 packages)
+4. Fetches latest agent info (version and SHA256 from the served file)
+5. If the machine is not approved — returns `pending_approval` with empty `jobs`
+6. Fetches up to 3 `pending` jobs, sorted by `created_at`
+7. Returns the job list, policy flags (`auto_patch`, `auto_reboot`, `auto_agent_update`), and agent update information
 
 ### `POST /api/v1/agent/jobs/{id}/started`
 
-Verifierar att jobbet tillhör den autentiserade agenten (`Job.machine_id == machine.id`). Sätter `status = "running"` och `started_at = now`. Returnerar 404 om jobbet inte finns eller tillhör en annan agent.
+Verifies that the job belongs to the authenticated agent (`Job.machine_id == machine.id`). Sets `status = "running"` and `started_at = now`. Returns 404 if the job does not exist or belongs to a different agent.
 
 ### `POST /api/v1/agent/jobs/{id}/result`
 
-Tar emot `exit_code` och `output` (trunkeras till 30 000 tecken). Sätter status till `success` (exit 0) eller `failed` (exit != 0). Uppdaterar `last_success_at` eller `last_error`. Skriver till auditloggen. Skickar Discord-notifiering vid fel eller vid lyckad `upgrade`/`security_upgrade`/`reboot`.
+Receives `exit_code` and `output` (truncated to 30,000 characters). Sets status to `success` (exit 0) or `failed` (exit != 0). Updates `last_success_at` or `last_error`. Writes to the audit log. Sends a Discord notification on failure or on successful `upgrade`/`security_upgrade`/`reboot`.
 
 ### `GET /api/v1/agent/latest`
 
@@ -478,15 +478,15 @@ def latest_agent_info():
     return {"version": version, "sha256": sha256, "url": f"{PUBLIC_AGENT_URL}/agent/patchpilot-agent.py"}
 ```
 
-Läser agentfilen från disk vid varje anrop, beräknar SHA256 och extraherar versionssträngen med regex. Ingen cachning — reflekterar alltid den aktuella filen.
+Reads the agent file from disk on every call, computes SHA256, and extracts the version string with regex. No caching — always reflects the current file.
 
 ---
 
-## Server — admin-API
+## Server — admin API
 
-Alla admin-endpoints kräver ett giltigt CSRF-token (injiceras automatiskt av JS i admin-gränssnittet). Utan token returneras 403.
+All admin endpoints require a valid CSRF token (automatically injected by JS in the admin interface). Without a token, 403 is returned.
 
-### CSRF-dependency
+### CSRF dependency
 
 ```python
 def require_csrf(csrf_token: str = Form(default="")) -> None:
@@ -494,31 +494,31 @@ def require_csrf(csrf_token: str = Form(default="")) -> None:
         raise HTTPException(status_code=403, detail="Invalid CSRF token")
 ```
 
-Deklareras som `_: None = Depends(require_csrf)` på varje POST-endpoint. FastAPI kör dependencyn **före** handlerlogiken — om CSRF-valideringen misslyckas når koden aldrig databasoperationerna.
+Declared as `_: None = Depends(require_csrf)` on every POST endpoint. FastAPI runs the dependency **before** the handler logic — if CSRF validation fails, the code never reaches the database operations.
 
-### Jobbskapande
+### Job creation
 
-Validerar `action` mot `ALLOWED_ACTIONS` (400 vid ogiltig). Skapar ett `Job`-objekt med `status="pending"`. Skriver auditlogg och Discord-notifiering. Alla admin-POST returnerar `RedirectResponse("/admin", status_code=303)` — efter en formulärsubmit omdirigeras webbläsaren med GET, vilket förhindrar att formuläret skickas om vid page refresh (PRG-mönstret).
+Validates `action` against `ALLOWED_ACTIONS` (400 if invalid). Creates a `Job` object with `status="pending"`. Writes audit log and Discord notification. All admin POSTs return `RedirectResponse("/admin", status_code=303)` — after a form submit the browser is redirected with GET, which prevents the form from being resubmitted on page refresh (the PRG pattern).
 
-### Godkännande av jobb
+### Job approval
 
-Sätter `job.status = "pending"` (från `approval_required`). Jobbet plockas upp av agenten vid nästa incheckning.
+Sets `job.status = "pending"` (from `approval_required`). The job is picked up by the agent at the next check-in.
 
-### Token-rotation
+### Token rotation
 
-Genererar nytt token, hashar det och sparar i databasen. Returnerar klartext-tokenet direkt i svaret (som ren text). Administratören kopierar det och uppdaterar `/etc/patchpilot/agent.json` manuellt på agentmaskinen.
+Generates a new token, hashes it, and saves it in the database. Returns the plaintext token directly in the response (as plain text). The administrator copies it and manually updates `/etc/patchpilot/agent.json` on the agent machine.
 
-### Maskinborttagning
+### Machine deletion
 
-Raderar alla relaterade rader i ordning: `jobs` → `package_updates` → `machine_groups` → `machines`. Utan denna ordning skulle foreign key-constraints blockera borttagningen.
+Deletes all related rows in order: `jobs` → `package_updates` → `machine_groups` → `machines`. Without this order, foreign key constraints would block the deletion.
 
-### Schemakoppling
+### Schedule linking
 
-Schedules sparas med target-type (`machine` eller `group`) och target-ID. Vid skapande valideras `action`, `target_type`, `day_of_week` mot hårdkodade sets. `time_of_day` valideras med `re.fullmatch(r"\d{2}:\d{2}", ...)`.
+Schedules are saved with target type (`machine` or `group`) and target ID. On creation, `action`, `target_type`, and `day_of_week` are validated against hardcoded sets. `time_of_day` is validated with `re.fullmatch(r"\d{2}:\d{2}", ...)`.
 
 ---
 
-## Schemaläggaren
+## Scheduler
 
 ```python
 scheduler = BackgroundScheduler()
@@ -529,7 +529,7 @@ def startup():
     scheduler.start()
 ```
 
-APScheduler körs som en bakgrundstråd i samma process som FastAPI. `run_schedules()` anropas en gång per minut.
+APScheduler runs as a background thread in the same process as FastAPI. `run_schedules()` is called once per minute.
 
 ### `run_schedules()`
 
@@ -542,24 +542,24 @@ def run_schedules():
         run_key = f"{s.id}:{now.date()}"
 
         if not s.enabled: continue
-        if s.last_run_key == run_key: continue  # redan kört idag
+        if s.last_run_key == run_key: continue  # already run today
         if s.day_of_week != "all" and DAYS[s.day_of_week] != current_dow: continue
-        if s.time_of_day != current_hour_min: continue  # exakt matchning
+        if s.time_of_day != current_hour_min: continue  # exact match
 
-        # Skapa jobb för maskinen eller alla maskiner i gruppen
+        # Create job for the machine or all machines in the group
         status = "approval_required" if s.require_approval else "pending"
         ...
         s.last_run_key = run_key
         s.last_run_at = datetime.utcnow()
 ```
 
-Tidszonshantering görs med Pythons `zoneinfo` (inbyggt i Python 3.9+). Scheduler-tiderna jämförs i schedulens lokala tidszon — om ett schema är konfigurerat för `03:00 Europe/Stockholm` triggas det vid 03:00 lokal tid oavsett serverns tidszon.
+Timezone handling is done with Python's `zoneinfo` (built into Python 3.9+). Scheduler times are compared in the schedule's local timezone — if a schedule is configured for `03:00 Europe/Stockholm`, it triggers at 03:00 local time regardless of the server's timezone.
 
-`last_run_key` på formatet `{schedule_id}:{datum}` är en enkel dedupliceringsgaranti: om schedulern råkar köra två gånger i samma minut (t.ex. vid restart) skapas bara en jobbomgång.
+`last_run_key` in the format `{schedule_id}:{date}` is a simple deduplication guarantee: if the scheduler happens to run twice in the same minute (e.g. on restart), only one set of jobs is created.
 
 ---
 
-## Notifieringar
+## Notifications
 
 ```python
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
@@ -578,92 +578,92 @@ def notify_discord(message: str):
             timeout=5,
         )
     except Exception:
-        pass   # notifieringsfel ska aldrig påverka API-svaret
+        pass   # notification failures must never affect the API response
 ```
 
-Discord-notifieringar skickas synkront men med kort timeout (5 s) och alla undantag ignoreras tyst. Det innebär att ett Discord-avbrott aldrig blockerar enrollment, incheckning eller jobbresultat.
+Discord notifications are sent synchronously but with a short timeout (5 s) and all exceptions are silently ignored. This means a Discord outage never blocks enrollment, check-in, or job results.
 
-Notifieringar skickas vid:
-- Ny agent enrollad (pending eller auto-godkänd)
-- Agent godkänd/avslagen av admin
-- Jobb köat av admin
-- Jobb misslyckat
-- Lyckad `upgrade`, `security_upgrade` eller `reboot`
-
----
-
-## Installationsskript
-
-Servern genererar installationsskript dynamiskt i minnet — de skrivs aldrig till disk. Det gör att server-URL:en alltid är korrekt och SHA256-summan alltid är färsk.
-
-### `GET /install.sh` — direktinstallation
-
-1. Laddar ned agentfilen till `/usr/local/bin/patchpilot-agent`
-2. Hämtar `GET /api/v1/agent/latest` för att få förväntad SHA256
-3. Beräknar `sha256sum` lokalt med `sha256sum`-kommandot
-4. Jämför — avbryter och raderar agentfilen om checksummorna inte stämmer
-5. Kör `patchpilot-agent --enroll --server $SERVER_URL`
-6. Installerar systemd-service och systemd-timer
-7. Aktiverar timern omedelbart
-
-### `GET /template-install.sh` — VM-templateinstallation
-
-Samma som ovan men:
-- Kör **inte** enrollment vid installation
-- Skriver `/etc/patchpilot/bootstrap.json` med `{"server_url": "...", "template_mode": true}`
-- Raderar `/etc/patchpilot/agent.json` och `/etc/patchpilot/machine-id` (säkerställer att klonade VMs får unika identiteter)
-- Aktiverar **inte** timern — den aktiveras av den som deployar VM-templaten
-
-När en VM klonas från templaten och startas kör systemd-timern `patchpilot-agent --once` som anropar `bootstrap_if_needed()`. Den hittar `bootstrap.json`, kör enrollment och skapar ett unikt maskin-ID baserat på den klonade VM:ns hostname.
+Notifications are sent on:
+- New agent enrolled (pending or auto-approved)
+- Agent approved/rejected by admin
+- Job queued by admin
+- Job failed
+- Successful `upgrade`, `security_upgrade`, or `reboot`
 
 ---
 
-## Testsvit
+## Install scripts
 
-Definitionerna finns i `backend/tests/`.
+The server generates install scripts dynamically in memory — they are never written to disk. This ensures the server URL is always correct and the SHA256 sum is always fresh.
 
-### Infrastruktur (`conftest.py`)
+### `GET /install.sh` — direct installation
 
-Testerna använder SQLite in-memory (via fil `test_patchpilot.db`) istället för PostgreSQL. FastAPIs dependency injection-mekanism används för att byta ut `get_db` mot en funktion som levererar en session mot testdatabasen:
+1. Downloads the agent file to `/usr/local/bin/patchpilot-agent`
+2. Fetches `GET /api/v1/agent/latest` to get the expected SHA256
+3. Computes `sha256sum` locally with the `sha256sum` command
+4. Compares — aborts and deletes the agent file if checksums don't match
+5. Runs `patchpilot-agent --enroll --server $SERVER_URL`
+6. Installs the systemd service and systemd timer
+7. Activates the timer immediately
+
+### `GET /template-install.sh` — VM template installation
+
+Same as above but:
+- Does **not** run enrollment at installation time
+- Writes `/etc/patchpilot/bootstrap.json` with `{"server_url": "...", "template_mode": true}`
+- Deletes `/etc/patchpilot/agent.json` and `/etc/patchpilot/machine-id` (ensures cloned VMs get unique identities)
+- Does **not** activate the timer — it is activated by whoever deploys the VM template
+
+When a VM is cloned from the template and started, the systemd timer runs `patchpilot-agent --once` which calls `bootstrap_if_needed()`. It finds `bootstrap.json`, runs enrollment, and creates a unique machine ID based on the cloned VM's hostname.
+
+---
+
+## Test suite
+
+Definitions are in `backend/tests/`.
+
+### Infrastructure (`conftest.py`)
+
+Tests use SQLite in-memory (via file `test_patchpilot.db`) instead of PostgreSQL. FastAPI's dependency injection mechanism is used to swap out `get_db` for a function that delivers a session against the test database:
 
 ```python
 app.dependency_overrides[get_db] = _override_db
 ```
 
-`_clean_state`-fixture raderar alla tabellrader efter varje test via SQLAlchemys `table.delete()`. `_create_tables` är session-scoped och skapar tabellerna en gång per testsession.
+The `_clean_state` fixture deletes all table rows after each test via SQLAlchemy's `table.delete()`. `_create_tables` is session-scoped and creates the tables once per test session.
 
-SQLite-guard i `migrate_db()`:
+SQLite guard in `migrate_db()`:
 ```python
 def migrate_db():
     if "sqlite" in str(engine.url):
-        return  # SQLite uses create_all; ALTER TABLE IF NOT EXISTS är PostgreSQL-only
+        return  # SQLite uses create_all; ALTER TABLE IF NOT EXISTS is PostgreSQL-only
 ```
 
-### `test_api.py` — 30 tester
+### `test_api.py` — 30 tests
 
-Testar alla HTTP-endpoints med `fastapi.testclient.TestClient`. Täcker:
-- Enrollment: nyregistrering, dubbel-enrollment, saknade fält, rate limiting
-- Incheckning: autentisering, rätt/fel token, paketlista, trunkering av stor lista
-- Jobb: skapande, started/result-rapportering, att fel agent inte kan nå rätt agents jobb
-- CSRF: alla admin-POST-routes returnerar 403 utan token, 403 med fel token, 303 med rätt token
-- Admin-autentisering: 401 utan lösenord, 200 med rätt, 401 med fel
-- Host-routing: agent-hostname blockerar `/admin`, admin-hostname blockerar `/api/v1/agent/`
-- Admin-endpoints: skapande av grupper, scheman (inkl. ogiltigt tidsformat), maskingodkännande
+Tests all HTTP endpoints with `fastapi.testclient.TestClient`. Covers:
+- Enrollment: new registration, double enrollment, missing fields, rate limiting
+- Check-in: authentication, correct/wrong token, package list, truncation of large list
+- Jobs: creation, started/result reporting, that the wrong agent cannot reach the right agent's jobs
+- CSRF: all admin POST routes return 403 without token, 403 with wrong token, 303 with correct token
+- Admin authentication: 401 without password, 200 with correct, 401 with wrong
+- Host routing: agent hostname blocks `/admin`, admin hostname blocks `/api/v1/agent/`
+- Admin endpoints: creation of groups, schedules (including invalid time format), machine approval
 
-### `test_security.py` — 8 tester
+### `test_security.py` — 8 tests
 
-Testar `security.py` isolerat:
-- Tokenformat och unicitet
+Tests `security.py` in isolation:
+- Token format and uniqueness
 - Bcrypt hash-verify roundtrip
-- CSRF-token deterministisk inom timmen
-- Föregående timmes token accepteras (max 2 timmar)
-- Token från 2 timmar sedan avvisas
-- Fel och tomt token avvisas
+- CSRF token is deterministic within the hour
+- Previous hour's token is accepted (max 2 hours)
+- Token from 2 hours ago is rejected
+- Wrong and empty token are rejected
 
-### `test_agent.py` — 16 tester
+### `test_agent.py` — 16 tests
 
-Testar agentens rena funktioner utan subprocess och utan nätverksanrop (allt mockat):
-- `parse_apt_updates()`: tom output, normalt paket, security-paket, multipla paket, APT-fel
-- `self_update_agent()`: saknad URL, ogiltigt filinnehåll, SHA256-mismatch, tempfil i rätt katalog
-- `get_machine_id()`: skapar och persisterar nytt ID, läser befintligt ID
-- `enroll()`: omregistrering avslutar med exit 0, saknat token avslutar med exit 1
+Tests the agent's pure functions without subprocess and without network calls (everything mocked):
+- `parse_apt_updates()`: empty output, normal package, security package, multiple packages, APT error
+- `self_update_agent()`: missing URL, invalid file content, SHA256 mismatch, temp file in correct directory
+- `get_machine_id()`: creates and persists new ID, reads existing ID
+- `enroll()`: re-enrollment exits with exit 0, missing token exits with exit 1

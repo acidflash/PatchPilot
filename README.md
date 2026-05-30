@@ -124,29 +124,114 @@ The server accepts a maximum of 500 packages per check-in. Job actions are valid
 
 ## Deployment
 
+### Prerequisites
+
+- Docker and Docker Compose
+- Git
+- A Linux server (Ubuntu/Debian recommended)
+- A domain name, or access via LAN/Cloudflare Tunnel
+
+---
+
+### 1. Clone and configure
+
 ```bash
+git clone https://github.com/acidflash/PatchPilot.git
+cd PatchPilot
 cp .env.example .env
-# Fill in .env with ADMIN_PASSWORD, APP_SECRET, PUBLIC_AGENT_URL
+```
+
+Edit `.env` and fill in the required values:
+
+| Variable | Description |
+|---|---|
+| `POSTGRES_PASSWORD` | Database password — use a long random string |
+| `APP_SECRET` | Secret for CSRF signing — use a long random string |
+| `PUBLIC_AGENT_URL` | Public URL agents use to reach the server, e.g. `https://patch.example.com` |
+| `AGENT_PUBLIC_HOSTNAME` | Hostname for the agent-facing endpoint (same as above without `https://`) |
+| `ADMIN_INTERNAL_HOSTNAMES` | Comma-separated hostnames for the admin UI, e.g. `patch-admin.example.com,localhost` |
+| `ADMIN_PASSWORD` | Password for the admin dashboard (HTTP Basic Auth) |
+
+Optional:
+
+| Variable | Description |
+|---|---|
+| `DISCORD_WEBHOOK_URL` | Discord webhook URL for alerts |
+| `CLOUDFLARED_TOKEN` | Cloudflare Tunnel token (if using Cloudflare) |
+| `PATCHPILOT_AUTO_APPROVE_AGENTS` | Set to `true` to auto-approve new agents (default: `false`) |
+| `PATCHPILOT_AUTO_AGENT_UPDATE` | Set to `true` to auto-update agents when a new version is available (default: `false`) |
+
+---
+
+### 2. Configure Caddy
+
+Edit `caddy/Caddyfile` to match your hostnames:
+
+```
+patch.example.com {
+    reverse_proxy backend:8080
+}
+
+patch-admin.example.com {
+    reverse_proxy backend:8080
+}
+```
+
+For Let's Encrypt (public server), remove the `acme_ca*` lines from the global block. For a private CA, point `acme_ca` and `acme_ca_root` at your CA.
+
+---
+
+### 3. Start the server
+
+```bash
 docker compose up -d --build
 ```
 
-The admin interface is available at `http://localhost:8080/admin`.
+The admin interface is available at `https://patch-admin.example.com/admin` (or `http://localhost:8080/admin` if accessed directly).
 
-### Deploy
+---
+
+### 4. Install the agent on an Ubuntu machine
+
+**One-liner (recommended):**
+
+```bash
+curl -fsSL https://patch.example.com/install.sh | sudo bash -s -- --server https://patch.example.com
+```
+
+The install script downloads the agent from the server, verifies its SHA256 checksum, enrolls it, and installs a systemd timer that runs every 5 minutes.
+
+**Manual install (if the machine can't reach the server directly during install):**
+
+```bash
+# Download install script and agent manually, then:
+sudo ./agent/install-agent.sh --server https://patch.example.com
+```
+
+---
+
+### 5. Approve the agent
+
+If `PATCHPILOT_AUTO_APPROVE_AGENTS=false` (the default), new agents appear as **pending** in the admin UI under Fleet. Click **Approve** to allow the agent to receive jobs.
+
+---
+
+### Ongoing deploys
+
+Copy `deploy.env.example` to `deploy.env` and fill in your server details:
+
+```bash
+cp deploy.env.example deploy.env
+# Set DEPLOY_HOST and DEPLOY_DIR in deploy.env
+```
+
+Then deploy with:
 
 ```bash
 ./deploy.sh
 ```
 
-Pushes local commits, pulls on the server, and rebuilds the container.
-
-### Agent installation on Ubuntu machine
-
-```bash
-curl -fsSL https://your-server/install.sh | sudo bash -s -- --server https://your-server
-```
-
-The install script verifies the agent file's SHA256 hash against the server before activating it.
+This pushes local commits, pulls on the remote server, and rebuilds the container.
 
 ---
 

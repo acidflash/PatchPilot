@@ -10,6 +10,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.3] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
+
+### Changed
+- Caddy configuration now reads `CADDY_ADMIN_HOSTNAME`, `CADDY_EMAIL`, and `CADDY_ACME_CA` from `.env` instead of being hardcoded in `Caddyfile`
+- Added `env_file: .env` to the Caddy service in `docker-compose.yml`
+- Added Caddy variables to `.env.example` with documentation
+
+---
+
 ## [0.6.2] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
 
 ### Changed

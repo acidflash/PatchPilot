@@ -1,20 +1,11 @@
-# Example Caddyfile for a self-hosted setup with a private CA.
-# Adjust hostnames and CA settings to match your environment.
-# For a public setup with Let's Encrypt, remove the acme_ca* lines.
+# Caddy reads CADDY_EMAIL, CADDY_ACME_CA, CADDY_ADMIN_HOSTNAME from .env
+# For Let's Encrypt (public server), remove the acme_ca line.
 {
-    email admin@example.com
-    acme_ca https://pki.example.com/directory
+    email {env.CADDY_EMAIL}
+    acme_ca {env.CADDY_ACME_CA}
     acme_ca_root /etc/caddy/certs/root-cert.pem
 }
 
-patch-admin.example.com {
-    reverse_proxy backend:8080
-}
-
-# Internal agent endpoint — allows on-LAN agents to connect without NAT
-# so their real LAN IPs are recorded instead of the firewall IP.
-# Enable by setting AGENT_INTERNAL_HOSTNAME=patch-agent.example.com in .env
-# and pointing agent server_url at https://patch-agent.example.com
-patch-agent.example.com {
+{env.CADDY_ADMIN_HOSTNAME} {
     reverse_proxy backend:8080
 }

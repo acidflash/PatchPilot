@@ -44,6 +44,7 @@ services:
   caddy:
     image: caddy:2
     container_name: patchpilot-caddy
+    env_file: .env
     depends_on:
       - backend
     ports:

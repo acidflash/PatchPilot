@@ -1,4 +1,4 @@
-# Caddy reads CADDY_EMAIL, CADDY_ACME_CA, CADDY_ADMIN_HOSTNAME from .env
+# Caddy reads variables from .env via docker-compose env_file.
 # For Let's Encrypt (public server), remove the acme_ca line.
 {
     email {env.CADDY_EMAIL}
@@ -6,6 +6,16 @@
     acme_ca_root /etc/caddy/certs/root-cert.pem
 }
 
+# Admin UI — internal LAN access only
 {env.CADDY_ADMIN_HOSTNAME} {
+    reverse_proxy backend:8080
+}
+
+# Optional: internal agent endpoint for on-LAN agents.
+# Allows agents to connect without going through NAT so their real LAN IPs
+# are recorded instead of the firewall IP.
+# Set CADDY_AGENT_HOSTNAME in .env and set AGENT_INTERNAL_HOSTNAME to the same value.
+# Comment out this block if you don't use an internal agent endpoint.
+{env.CADDY_AGENT_HOSTNAME} {
     reverse_proxy backend:8080
 }

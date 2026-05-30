@@ -10,6 +10,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.4] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
+
+### Fixed
+- Caddy now correctly expands environment variables in site addresses using `envsubst` and a custom entrypoint script — Caddy's native `{env.VAR}` syntax does not work for site addresses
+- Agent hostname block is only added to the generated Caddyfile if `CADDY_AGENT_HOSTNAME` is set, preventing a parse error on empty values
+
+### Changed
+- Caddy is now built from a custom `caddy/Dockerfile` (based on `caddy:2-alpine` with `gettext` for `envsubst`)
+- `Caddyfile` replaced by `Caddyfile.template` with `${VAR}` placeholders processed at container startup
+
+---
+
 ## [0.6.3] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
 
 ### Changed

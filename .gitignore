@@ -97,6 +97,11 @@ tmp/
 temp/
 
 # -------------------------
+# Claude Code local config (may contain personal paths and IPs)
+# -------------------------
+.claude/
+
+# -------------------------
 # Editor / OS junk
 # -------------------------
 .DS_Store

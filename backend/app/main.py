@@ -42,7 +42,7 @@ ADMIN_INTERNAL_HOSTNAMES = {
 }
 # Optional: separate internal hostname that only allows agent API (not admin UI).
 # Set AGENT_INTERNAL_HOSTNAME=patch-agent.example.com to let on-LAN agents
-# connect without NAT so their real 192.168.x.x IPs are recorded.
+# connect without NAT so their real LAN IPs are recorded.
 AGENT_INTERNAL_HOSTNAME = os.getenv("AGENT_INTERNAL_HOSTNAME", "").strip().lower()
 
 # Per-IP enrollment rate limiter (in-memory, resets on restart)

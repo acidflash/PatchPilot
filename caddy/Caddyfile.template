@@ -10,12 +10,3 @@
 ${CADDY_ADMIN_HOSTNAME} {
     reverse_proxy backend:8080
 }
-
-# Optional: internal agent endpoint for on-LAN agents.
-# Allows agents to connect without going through NAT so their real LAN IPs
-# are recorded instead of the firewall IP.
-# Set CADDY_AGENT_HOSTNAME and AGENT_INTERNAL_HOSTNAME to the same value in .env.
-# Remove this block if you don't use an internal agent endpoint.
-${CADDY_AGENT_HOSTNAME} {
-    reverse_proxy backend:8080
-}

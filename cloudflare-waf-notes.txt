@@ -1,0 +1,27 @@
+Suggested Cloudflare rules:
+
+Hostname: patch.example.com
+
+Allow:
+  URI Path starts with /api/v1/agent/
+
+Block:
+  URI Path starts with /admin
+  URI Path equals /docs
+  URI Path equals /redoc
+  URI Path equals /openapi.json
+
+Hostname: patch-admin.example.com
+
+Protect with Cloudflare Access.
+
+MVP auth:
+  Agent API uses:
+    X-Agent-ID: <machine_id>
+    Authorization: Bearer <agent_token>
+
+Hardening later:
+  Cloudflare Access Service Tokens
+  mTLS client certs
+  Rate limiting
+  Audit logs

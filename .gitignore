@@ -4,6 +4,7 @@
 .env
 .env.*
 !.env.example
+deploy.env
 
 # Cloudflare tunnel tokens / credentials
 cloudflared/

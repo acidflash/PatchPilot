@@ -47,8 +47,8 @@ services:
     depends_on:
       - backend
     ports:
-      - "192.168.1.100:80:80"
-      - "192.168.1.100:443:443"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/certs:/etc/caddy/certs:ro

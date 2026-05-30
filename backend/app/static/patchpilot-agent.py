@@ -18,7 +18,7 @@ import uuid
 from pathlib import Path
 from urllib import request, error
 
-AGENT_VERSION = "0.6.7"
+AGENT_VERSION = "0.6.8"
 CONFIG_PATH = Path("/etc/patchpilot/agent.json")
 BOOTSTRAP_PATH = Path("/etc/patchpilot/bootstrap.json")
 CACHE_PATH = Path("/etc/patchpilot/status-cache.json")
@@ -225,7 +225,9 @@ def self_update_agent(update_url, expected_sha256=None):
             return 1, "Downloaded file does not look like PatchPilot agent"
 
         got_sha256 = hashlib.sha256(data).hexdigest()
-        if expected_sha256 and expected_sha256 != got_sha256:
+        if not expected_sha256:
+            return 1, "Server did not provide a SHA256 checksum; refusing update"
+        if expected_sha256 != got_sha256:
             return 1, f"SHA256 mismatch. expected={expected_sha256} got={got_sha256}"
 
         with tempfile.NamedTemporaryFile("wb", delete=False, dir=current_path.parent, prefix="patchpilot-agent-", suffix=".new") as tmp:

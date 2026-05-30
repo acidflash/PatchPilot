@@ -10,6 +10,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.8] — 2026-05-30 · Server 0.6.8 · Agent 0.6.8
+
+### Security
+- Server now refuses to start if `APP_SECRET` is unset or uses a known default placeholder (`change-me`), preventing CSRF token forgery via publicly known secret
+- Agent: `self_update_agent()` now treats a missing or empty SHA256 from the server as a hard failure instead of silently skipping integrity verification
+- `install-agent.sh`: same fix — aborts with an error if the server returns an empty SHA256 checksum
+
+---
+
 ## [0.6.7] — 2026-05-30 · Server 0.6.7 · Agent 0.6.7
 
 ### Fixed

@@ -24,9 +24,16 @@ from .db import Base, engine, get_db, SessionLocal
 from .models import AuditLog, Group, Job, Machine, MachineGroup, PackageUpdate, Schedule
 from .security import hash_token, make_csrf_token, new_token, verify_csrf_token, verify_token
 
-APP_VERSION = "0.6.7"
+APP_VERSION = "0.6.8"
 ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot", "security_upgrade", "self_update", "upgrade"}
 DAYS = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
+
+_app_secret = os.getenv("APP_SECRET", "")
+if not _app_secret or _app_secret in {"change-me", "change-me-long-random"}:
+    raise RuntimeError(
+        "APP_SECRET is not set or is using the default placeholder. "
+        "Set a long random secret in your .env file before starting PatchPilot."
+    )
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="PatchPilot", version=APP_VERSION)

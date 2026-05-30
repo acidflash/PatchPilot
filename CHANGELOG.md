@@ -10,6 +10,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.1] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
+
+### Added
+- GPL-3.0 `LICENSE` file with copyright notice
+- GPL-3.0 copyright headers in all source files
+- `deploy.env.example` — template for local deploy configuration
+
+### Changed
+- `deploy.sh` now reads `DEPLOY_HOST` and `DEPLOY_DIR` from `deploy.env` (gitignored) instead of hardcoded values
+- All config files sanitized for public release: replaced private hostnames, IPs, and domains with `example.com` placeholders
+- `.claude/` added to `.gitignore`
+
+### Security
+- Removed accidentally committed `.env` with live credentials from git history
+- Scrubbed all private hostnames, IPs, and personal paths from full git history
+- Repository made public on GitHub
+
+---
+
 ## [0.6.0] — 2026-05-29 · Server 0.6.0 · Agent 0.6.0
 
 ### Changed

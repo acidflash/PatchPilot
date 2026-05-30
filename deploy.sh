@@ -14,9 +14,6 @@ fi
 : "${DEPLOY_HOST:?Set DEPLOY_HOST in deploy.env or the environment}"
 : "${DEPLOY_DIR:?Set DEPLOY_DIR in deploy.env or the environment}"
 
-echo "[+] Pushing to remote..."
-git push
-
 echo "[+] Deploying on $DEPLOY_HOST..."
 ssh "$DEPLOY_HOST" "cd $DEPLOY_DIR && git pull && docker compose up --build -d"
 

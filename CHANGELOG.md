@@ -10,6 +10,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.6] — 2026-05-30 · Server 0.6.5 · Agent 0.6.5
+
+### Changed
+- `deploy.sh` no longer runs `git push` — push is done separately before deploying
+
+---
+
 ## [0.6.5] — 2026-05-30 · Server 0.6.5 · Agent 0.6.5
 
 ### Changed

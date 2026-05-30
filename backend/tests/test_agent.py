@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Jonas Byström
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Tests for pure functions in patchpilot-agent.py (no subprocess, no network)."""
 import importlib.util
 import os

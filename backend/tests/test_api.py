@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Jonas Byström
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Integration tests for FastAPI endpoints."""
 import pytest
 from app.security import make_csrf_token

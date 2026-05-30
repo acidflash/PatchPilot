@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Jonas Byström
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import hashlib
 import hmac
 import os

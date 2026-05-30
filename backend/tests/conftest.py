@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Jonas Byström
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import os
 
 # Must be set before any app imports so db.py and security.py pick them up

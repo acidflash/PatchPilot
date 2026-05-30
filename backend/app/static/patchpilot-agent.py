@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 from urllib import request, error
 
-AGENT_VERSION = "0.6.0"
+AGENT_VERSION = "0.6.5"
 CONFIG_PATH = Path("/etc/patchpilot/agent.json")
 BOOTSTRAP_PATH = Path("/etc/patchpilot/bootstrap.json")
 CACHE_PATH = Path("/etc/patchpilot/status-cache.json")

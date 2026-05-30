@@ -10,6 +10,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.5] — 2026-05-30 · Server 0.6.5 · Agent 0.6.5
+
+### Changed
+- Bumped `APP_VERSION` and `AGENT_VERSION` to 0.6.5 to reflect all changes since 0.6.0
+
+---
+
 ## [0.6.4] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
 
 ### Fixed

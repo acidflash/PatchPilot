@@ -10,6 +10,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.2] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
+
+### Changed
+- Expanded Deployment section in README with step-by-step instructions: prerequisites, `.env` reference, Caddy configuration, agent installation, agent approval flow, and ongoing deploys via `deploy.sh`
+
+---
+
 ## [0.6.1] — 2026-05-30 · Server 0.6.0 · Agent 0.6.0
 
 ### Added

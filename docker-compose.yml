@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2
+    build: ./caddy
     container_name: patchpilot-caddy
     env_file: .env
     depends_on:
@@ -51,7 +51,6 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/certs:/etc/caddy/certs:ro
       - ./data/caddy/data:/data
       - ./data/caddy/config:/config

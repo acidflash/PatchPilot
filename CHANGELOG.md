@@ -10,6 +10,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.7] — 2026-05-30 · Server 0.6.7 · Agent 0.6.7
+
+### Fixed
+- Agent: removed redundant `import hashlib as _hashlib` inside `self_update_agent` — `hashlib` is already imported at module level
+- Agent: `shutil` moved to top-level imports
+- Agent: `http_json` now catches `URLError` (network errors) in addition to `HTTPError`, with a clear error message
+- Agent: response decoding uses explicit `utf-8` with `errors='replace'` instead of implicit default
+- Agent: fallback status check uses `is not None` instead of truthiness to avoid incorrect behaviour on empty dict
+
+---
+
 ## [0.6.6] — 2026-05-30 · Server 0.6.5 · Agent 0.6.5
 
 ### Changed

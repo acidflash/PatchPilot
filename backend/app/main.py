@@ -24,7 +24,7 @@ from .db import Base, engine, get_db, SessionLocal
 from .models import AuditLog, Group, Job, Machine, MachineGroup, PackageUpdate, Schedule
 from .security import hash_token, make_csrf_token, new_token, verify_csrf_token, verify_token
 
-APP_VERSION = "0.6.5"
+APP_VERSION = "0.6.6"
 ALLOWED_ACTIONS = {"apt_clean", "check_updates", "reboot", "security_upgrade", "self_update", "upgrade"}
 DAYS = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 

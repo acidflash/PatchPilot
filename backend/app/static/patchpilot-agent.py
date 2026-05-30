@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import uuid
 from pathlib import Path
 from urllib import request, error
 
-AGENT_VERSION = "0.6.5"
+AGENT_VERSION = "0.6.6"
 CONFIG_PATH = Path("/etc/patchpilot/agent.json")
 BOOTSTRAP_PATH = Path("/etc/patchpilot/bootstrap.json")
 CACHE_PATH = Path("/etc/patchpilot/status-cache.json")
@@ -54,10 +55,13 @@ def http_json(method, url, data=None, headers=None):
     req = request.Request(url, data=body, method=method, headers=h)
     try:
         with request.urlopen(req, timeout=90) as resp:
-            raw = resp.read().decode()
+            raw = resp.read().decode('utf-8', errors='replace')
             return json.loads(raw) if raw else {}
     except error.HTTPError as e:
-        print(f"HTTP error {e.code}: {e.read().decode()}", file=sys.stderr)
+        print(f"HTTP error {e.code}: {e.read().decode('utf-8', errors='replace')}", file=sys.stderr)
+        raise
+    except error.URLError as e:
+        print(f"Network error: {e.reason}", file=sys.stderr)
         raise
 
 def get_machine_id():
@@ -198,8 +202,6 @@ def bootstrap_if_needed():
     return load_json(CONFIG_PATH)
 
 def self_update_agent(update_url, expected_sha256=None):
-    import hashlib as _hashlib
-    import shutil
     if not update_url:
         return 1, "Missing agent update URL"
 
@@ -222,7 +224,7 @@ def self_update_agent(update_url, expected_sha256=None):
         if not data.startswith(b"#!/usr/bin/env python3"):
             return 1, "Downloaded file does not look like PatchPilot agent"
 
-        got_sha256 = _hashlib.sha256(data).hexdigest()
+        got_sha256 = hashlib.sha256(data).hexdigest()
         if expected_sha256 and expected_sha256 != got_sha256:
             return 1, f"SHA256 mismatch. expected={expected_sha256} got={got_sha256}"
 
@@ -372,7 +374,7 @@ def run_once():
     except Exception as e:
         last_error = str(e)
         try:
-            fallback = status if status else {"hostname": socket.gethostname(), "agent_version": AGENT_VERSION}
+            fallback = status if status is not None else {"hostname": socket.gethostname(), "agent_version": AGENT_VERSION}
             fallback["last_error"] = last_error
             http_json("POST", f"{server}/api/v1/agent/checkin", fallback, auth_headers(cfg))
         except Exception:

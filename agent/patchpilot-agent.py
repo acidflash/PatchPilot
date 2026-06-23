@@ -18,7 +18,7 @@ import uuid
 from pathlib import Path
 from urllib import request, error
 
-AGENT_VERSION = "0.6.8"
+AGENT_VERSION = "0.6.9"
 CONFIG_PATH = Path("/etc/patchpilot/agent.json")
 BOOTSTRAP_PATH = Path("/etc/patchpilot/bootstrap.json")
 CACHE_PATH = Path("/etc/patchpilot/status-cache.json")
@@ -75,11 +75,30 @@ def get_machine_id():
     os.chmod(mid_path, 0o600)
     return machine_id
 
+def get_phased_packages():
+    """Return set of package names deferred due to apt phasing."""
+    rc, out = run("apt-get upgrade --simulate 2>&1 || true", timeout=120)
+    phased = set()
+    in_section = False
+    for line in out.splitlines():
+        if "deferred due to phasing" in line.lower():
+            in_section = True
+            continue
+        if in_section:
+            stripped = line.strip()
+            if not stripped:
+                break
+            for pkg in stripped.split():
+                phased.add(pkg)
+    return phased
+
 def parse_apt_updates():
     rc, out = run("apt list --upgradable 2>/dev/null | tail -n +2", timeout=180)
     packages = []
     if rc != 0:
         return packages
+
+    phased = get_phased_packages()
 
     for line in out.splitlines():
         line = line.strip()
@@ -104,22 +123,27 @@ def parse_apt_updates():
             "current_version": current,
             "candidate_version": candidate,
             "security": security,
+            "phased": pkg_name in phased,
             "raw": line,
         })
 
     return packages
 
 def apt_check_counts(packages):
-    updates = len(packages)
-    security = len([p for p in packages if p.get("security")])
+    installable = [p for p in packages if not p.get("phased")]
+    updates = len(installable)
+    security = len([p for p in installable if p.get("security")])
 
     checker = Path("/usr/lib/update-notifier/apt-check")
     if checker.exists():
         rc, out = run("/usr/lib/update-notifier/apt-check 2>/dev/null || true", timeout=120)
         m = re.search(r"(\d+)\s*;\s*(\d+)", out)
         if m:
-            updates = int(m.group(1))
-            security = int(m.group(2))
+            # apt-check doesn't account for phasing — subtract phased counts
+            phased_total = len(packages) - len(installable)
+            phased_sec = len([p for p in packages if p.get("phased") and p.get("security")])
+            updates = max(0, int(m.group(1)) - phased_total)
+            security = max(0, int(m.group(2)) - phased_sec)
 
     return updates, security
 
@@ -135,6 +159,8 @@ def collect_status(last_error=None):
     packages = parse_apt_updates()
     updates, security = apt_check_counts(packages)
 
+    phased_count = len([p for p in packages if p.get("phased")])
+
     return {
         "hostname": socket.gethostname(),
         "os_version": get_os_version(),
@@ -142,6 +168,7 @@ def collect_status(last_error=None):
         "agent_version": AGENT_VERSION,
         "updates_available": updates,
         "security_updates_available": security,
+        "phased_updates_available": phased_count,
         "reboot_required": Path("/var/run/reboot-required").exists(),
         "packages": packages,
         "last_error": last_error,

@@ -18,7 +18,7 @@ import uuid
 from pathlib import Path
 from urllib import request, error
 
-AGENT_VERSION = "0.6.9"
+AGENT_VERSION = "0.7.1"
 CONFIG_PATH = Path("/etc/patchpilot/agent.json")
 BOOTSTRAP_PATH = Path("/etc/patchpilot/bootstrap.json")
 CACHE_PATH = Path("/etc/patchpilot/status-cache.json")
@@ -75,22 +75,29 @@ def get_machine_id():
     os.chmod(mid_path, 0o600)
     return machine_id
 
-def get_phased_packages():
-    """Return set of package names deferred due to apt phasing."""
+def get_skipped_packages():
+    """Return (phased, held_back) sets — packages apt-get upgrade won't install."""
     rc, out = run("apt-get upgrade --simulate 2>&1 || true", timeout=120)
     phased = set()
-    in_section = False
+    held_back = set()
+    section = None
     for line in out.splitlines():
-        if "deferred due to phasing" in line.lower():
-            in_section = True
+        low = line.lower()
+        if "deferred due to phasing" in low:
+            section = "phased"
             continue
-        if in_section:
+        if "the following packages have been kept back" in low:
+            section = "held_back"
+            continue
+        if section:
             stripped = line.strip()
-            if not stripped:
-                break
+            if not stripped or stripped.startswith("Reading") or stripped.startswith("The following"):
+                section = None
+                continue
+            target = phased if section == "phased" else held_back
             for pkg in stripped.split():
-                phased.add(pkg)
-    return phased
+                target.add(pkg)
+    return phased, held_back
 
 def parse_apt_updates():
     rc, out = run("apt list --upgradable 2>/dev/null | tail -n +2", timeout=180)
@@ -98,7 +105,7 @@ def parse_apt_updates():
     if rc != 0:
         return packages
 
-    phased = get_phased_packages()
+    phased, held_back = get_skipped_packages()
 
     for line in out.splitlines():
         line = line.strip()
@@ -124,13 +131,14 @@ def parse_apt_updates():
             "candidate_version": candidate,
             "security": security,
             "phased": pkg_name in phased,
+            "held_back": pkg_name in held_back,
             "raw": line,
         })
 
     return packages
 
 def apt_check_counts(packages):
-    installable = [p for p in packages if not p.get("phased")]
+    installable = [p for p in packages if not p.get("phased") and not p.get("held_back")]
     updates = len(installable)
     security = len([p for p in installable if p.get("security")])
 
@@ -139,11 +147,11 @@ def apt_check_counts(packages):
         rc, out = run("/usr/lib/update-notifier/apt-check 2>/dev/null || true", timeout=120)
         m = re.search(r"(\d+)\s*;\s*(\d+)", out)
         if m:
-            # apt-check doesn't account for phasing — subtract phased counts
-            phased_total = len(packages) - len(installable)
-            phased_sec = len([p for p in packages if p.get("phased") and p.get("security")])
-            updates = max(0, int(m.group(1)) - phased_total)
-            security = max(0, int(m.group(2)) - phased_sec)
+            # apt-check doesn't account for phasing or held-back — subtract skipped counts
+            skipped_total = len(packages) - len(installable)
+            skipped_sec = len([p for p in packages if (p.get("phased") or p.get("held_back")) and p.get("security")])
+            updates = max(0, int(m.group(1)) - skipped_total)
+            security = max(0, int(m.group(2)) - skipped_sec)
 
     return updates, security
 
@@ -160,6 +168,7 @@ def collect_status(last_error=None):
     updates, security = apt_check_counts(packages)
 
     phased_count = len([p for p in packages if p.get("phased")])
+    held_back_count = len([p for p in packages if p.get("held_back")])
 
     return {
         "hostname": socket.gethostname(),
@@ -169,6 +178,7 @@ def collect_status(last_error=None):
         "updates_available": updates,
         "security_updates_available": security,
         "phased_updates_available": phased_count,
+        "held_back_updates_available": held_back_count,
         "reboot_required": Path("/var/run/reboot-required").exists(),
         "packages": packages,
         "last_error": last_error,
